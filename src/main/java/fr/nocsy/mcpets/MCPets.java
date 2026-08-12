@@ -47,6 +47,7 @@ import fr.nocsy.mcpets.data.config.BlacklistConfig;
 import fr.nocsy.mcpets.data.config.ItemsListConfig;
 import fr.nocsy.mcpets.velocity.VelocitySyncManager;
 import fr.nocsy.mcpets.data.editor.EditorConversation;
+import fr.nocsy.mcpets.scheduler.SchedulerAdapter;
 
 import static fr.nocsy.mcpets.mythicmobs.MythicListener.*;
 
@@ -54,6 +55,9 @@ public class MCPets extends JavaPlugin {
 
     @Getter
     private static MCPets instance;
+
+    @Getter
+    private SchedulerAdapter schedulerAdapter;
 
     private static MythicBukkit mythicMobs;
     private static LuckPerms luckPerms;
@@ -115,6 +119,7 @@ public class MCPets extends JavaPlugin {
     @Override
     public void onLoad() {
         instance = this;
+        schedulerAdapter = new SchedulerAdapter(this);
 
         // Reset static flags for PlugMan reload support
         itemsAdderFound = false;
