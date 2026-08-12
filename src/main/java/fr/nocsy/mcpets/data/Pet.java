@@ -224,10 +224,6 @@ public class Pet {
     private SchedulerTask task;
 
     private int teleportTick;
-
-    private record OwnerSnapshot(Location location, boolean dead, boolean flying, boolean gliding,
-                                 boolean onGround, boolean hasPermission) {
-    }
     private boolean taskRunning = false;
 
     /**
@@ -1032,7 +1028,7 @@ public class Pet {
     }
 
     private void executeAiDecision(@NotNull final OwnerSnapshot snapshot) {
-        if (!taskRunning || snapshot.dead()) {
+        if (!taskRunning || snapshot.isDead()) {
             return;
         }
 
@@ -1051,7 +1047,7 @@ public class Pet {
             return;
         }
 
-        final Location ownerLocation = snapshot.location();
+        final Location ownerLocation = snapshot.getLocation();
         final Location petLocation = activeMob.getEntity().getBukkitEntity().getLocation();
 
         if (!ownerLocation.getWorld().getName().equals(petLocation.getWorld().getName()) && tamingProgress == 1) {
@@ -1073,8 +1069,8 @@ public class Pet {
                     ownerLocation.getX(), ownerLocation.getY(), ownerLocation.getZ());
             PathFindingUtils.moveTo(activeMob.getEntity(), abstractLocation);
         } else if (distance > GlobalConfig.getInstance().getDistanceTeleport()
-                && !snapshot.flying() && !snapshot.gliding()
-                && snapshot.onGround() && teleportTick == 0) {
+                && !snapshot.isFlying() && !snapshot.isGliding()
+                && snapshot.isOnGround() && teleportTick == 0) {
             teleport(Utils.bruised(ownerLocation, Math.min(getSpawnRange(), getDistance())));
             teleportTick = 4;
         }
