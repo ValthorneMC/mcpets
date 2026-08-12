@@ -101,8 +101,11 @@ public class PetStats {
             if (GlobalConfig.getInstance().isAutoRespawn()) {
                 Player p = Bukkit.getPlayer(pet.getOwner());
                 if (p != null && Pet.getActivePets().get(pet.getOwner()) == null) {
-                    pet.spawn(p.getLocation(), true);
-                    Debugger.send("§aPet §6" + pet.getId() + "§a was autorespawned after death.");
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntity(p,
+                            () -> {
+                                pet.spawn(p.getLocation(), true);
+                                Debugger.send("§aPet §6" + pet.getId() + "§a was autorespawned after death.");
+                            });
                 } else {
                     Debugger.send("§cPet §6" + pet.getId() + "§c was supposed to autorespawn, but the player already has a spawned pet with him, or is disconnected.");
                 }

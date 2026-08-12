@@ -15,7 +15,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.event.entity.EntityTameEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -207,7 +206,7 @@ public class PetListener implements Listener {
         Player p = e.getPlayer();
         UUID uuid = p.getUniqueId();
 
-        Bukkit.getScheduler().runTaskLater(MCPets.getInstance(), () -> {
+        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(p, () -> {
             if (GlobalConfig.getInstance().isDatabaseSupport()) {
                 PlayerData.reloadAll(uuid);
             }
@@ -221,14 +220,13 @@ public class PetListener implements Listener {
                 reconnectionPets.remove(uuid); // discard — DB owns the state
 
                 // Load from DB asynchronously to avoid blocking the main thread
-                Bukkit.getScheduler().runTaskAsynchronously(MCPets.getInstance(), () -> {
+                MCPets.getInstance().getSchedulerAdapter().runAsync(() -> {
                     Databases.ActivePetRecord record = Databases.loadActivePet(uuid);
                     if (record == null) return;
                     if (isLiveSwitch) {
                         Databases.clearActivePet(uuid);
                     }
-                    // Return to main thread to spawn pets (skin restoration uses static maps)
-                    Bukkit.getScheduler().runTask(MCPets.getInstance(), () -> {
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntity(p, () -> {
                         if (!p.isOnline()) return;
                         for (String petId : record.getPetIds()) {
                             Pet template = Pet.getFromId(petId);
@@ -298,12 +296,8 @@ public class PetListener implements Listener {
         for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(p.getUniqueId()))) {
             if (pet.getTamingProgress() < 1) continue;
             pet.despawn(PetDespawnReason.TELEPORT);
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    pet.spawn(p, p.getLocation());
-                }
-            }.runTaskLater(MCPets.getInstance(), 20L);
+            MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(p,
+                    () -> pet.spawn(p, p.getLocation()), 20L);
         }
     }
 
@@ -382,15 +376,12 @@ public class PetListener implements Listener {
         }
         int value = 1;
         if (repeatRespawn.containsKey(ownerUUID)) value = repeatRespawn.get(ownerUUID);
-        pet.spawn(owner, owner.getLocation());
+        MCPets.getInstance().getSchedulerAdapter().runAtEntity(owner,
+                () -> pet.spawn(owner, owner.getLocation()));
         pet.setRecurrent_spawn(false);
         repeatRespawn.put(owner.getUniqueId(), value + 1);
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                repeatRespawn.remove(owner.getUniqueId());
-            }
-        }.runTaskLater(MCPets.getInstance(), 10L);
+        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(owner,
+                () -> repeatRespawn.remove(owner.getUniqueId()), 10L);
     }
 
     /**

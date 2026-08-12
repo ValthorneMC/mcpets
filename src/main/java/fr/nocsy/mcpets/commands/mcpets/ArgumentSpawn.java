@@ -1,6 +1,7 @@
 package fr.nocsy.mcpets.commands.mcpets;
 
 import fr.nocsy.mcpets.PPermission;
+import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.commands.AArgument;
 import fr.nocsy.mcpets.data.Pet;
 import fr.nocsy.mcpets.data.config.FormatArg;
@@ -46,9 +47,11 @@ public class ArgumentSpawn extends AArgument {
             return;
         }
         pet.setCheckPermission(checkPermission);
-        if (silent)
-            pet.spawn(target, target.getLocation());
-        else
-            pet.spawnWithMessage(target);
+        MCPets.getInstance().getSchedulerAdapter().runAtEntity(target, () -> {
+            if (silent)
+                pet.spawn(target, target.getLocation());
+            else
+                pet.spawnWithMessage(target);
+        });
     }
 }

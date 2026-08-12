@@ -7,6 +7,10 @@ import java.util.UUID;
 import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.data.Pet;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
+import fr.nocsy.mcpets.scheduler.SchedulerTask;
+
+import java.util.function.IntConsumer;
 
 public class MCPetsAPI {
 
@@ -66,11 +70,26 @@ public class MCPetsAPI {
     }
 
     /**
-     * Set the active pet of the player
-     * Returns a value giving what happened after calling the method
+     * Set the active pet of the player.
+     * This synchronous method must be called from the player's entity scheduler.
+     * Returns a value giving what happened after calling the method.
      */
-    public static int setActivePet(final Pet pet, final Player p, final boolean checkPermission) {
+    public static int setActivePet(@NotNull final Pet pet, @NotNull final Player player,
+                                   final boolean checkPermission) {
         pet.setCheckPermission(checkPermission);
-        return pet.spawn(p.getLocation(), true);
+        return pet.spawn(player.getLocation(), true);
+    }
+
+    /**
+     * Set the active pet of the player from any thread and report the result on the player's entity scheduler.
+     */
+    @NotNull
+    public static SchedulerTask setActivePetAsync(@NotNull final Pet pet, @NotNull final Player player,
+                                                  final boolean checkPermission,
+                                                  @NotNull final IntConsumer resultHandler) {
+        return MCPets.getInstance().getSchedulerAdapter().runAtEntity(player, () -> {
+            pet.setCheckPermission(checkPermission);
+            resultHandler.accept(pet.spawn(player.getLocation(), true));
+        });
     }
 }

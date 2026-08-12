@@ -13,7 +13,6 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -205,20 +204,17 @@ public class PetSkin {
 
         instancePet.despawn(PetDespawnReason.SKIN);
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                instancePet.spawn(loc, false);
-                if (hasRider) {
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            instancePet.setMount(Bukkit.getPlayer(instancePet.getOwner()));
-                        }
-                    }.runTaskLater(MCPets.getInstance(), 2L);
-                }
+        MCPets.getInstance().getSchedulerAdapter().runAtLocationDelayed(loc, () -> {
+            instancePet.spawn(loc, false);
+            if (hasRider && instancePet.getActiveMob() != null
+                    && instancePet.getActiveMob().getEntity().getBukkitEntity() != null) {
+                MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                        instancePet.getActiveMob().getEntity().getBukkitEntity(),
+                        () -> instancePet.setMount(Bukkit.getPlayer(instancePet.getOwner())),
+                        2L
+                );
             }
-        }.runTaskLater(MCPets.getInstance(), 2L);
+        }, 2L);
         return true;
     }
 }
