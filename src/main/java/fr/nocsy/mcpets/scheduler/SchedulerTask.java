@@ -1,40 +1,35 @@
 package fr.nocsy.mcpets.scheduler;
 
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import org.bukkit.scheduler.BukkitTask;
-
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import org.jetbrains.annotations.Nullable;
 
 public final class SchedulerTask {
 
+    @Nullable
     private final BukkitTask bukkitTask;
-    private final Object foliaTask;
 
-    private SchedulerTask(final BukkitTask bukkitTask, final Object foliaTask) {
+    @Nullable
+    private final ScheduledTask foliaTask;
+
+    private SchedulerTask(@Nullable final BukkitTask bukkitTask, @Nullable final ScheduledTask foliaTask) {
         this.bukkitTask = bukkitTask;
         this.foliaTask = foliaTask;
     }
 
-    public static SchedulerTask empty() {
-        return new SchedulerTask(null, null);
-    }
-
-    public static SchedulerTask fromBukkitTask(final BukkitTask task) {
+    public static SchedulerTask fromBukkitTask(@Nullable final BukkitTask task) {
         return new SchedulerTask(task, null);
     }
 
-    public static SchedulerTask fromFoliaTask(final Object task) {
+    public static SchedulerTask fromFoliaTask(@Nullable final ScheduledTask task) {
         return new SchedulerTask(null, task);
     }
 
     public void cancel() {
         if (bukkitTask != null) {
             bukkitTask.cancel();
-            return;
-        }
-
-        if (foliaTask != null) {
-            invoke("cancel");
+        } else if (foliaTask != null) {
+            foliaTask.cancel();
         }
     }
 
@@ -43,18 +38,6 @@ public final class SchedulerTask {
             return bukkitTask.isCancelled();
         }
 
-        return foliaTask == null || (boolean) invoke("isCancelled");
-    }
-
-    private Object invoke(final String methodName) {
-        try {
-            final Method method = foliaTask.getClass().getMethod(methodName);
-            return method.invoke(foliaTask);
-        } catch (InvocationTargetException exception) {
-            throw new IllegalStateException("Failed to invoke scheduler task method " + methodName,
-                    exception.getCause());
-        } catch (ReflectiveOperationException exception) {
-            throw new IllegalStateException("Scheduler task method is unavailable: " + methodName, exception);
-        }
+        return foliaTask == null || foliaTask.isCancelled();
     }
 }
