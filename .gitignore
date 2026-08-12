@@ -114,3 +114,4 @@ fabric.properties
 
 /META-INF/*.MF
 /src/main/resources/META-INF/*.MF
+AGENTS.md
