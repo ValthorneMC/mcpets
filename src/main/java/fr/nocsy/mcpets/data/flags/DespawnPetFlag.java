@@ -46,7 +46,7 @@ public class DespawnPetFlag extends AbstractFlag implements StoppableFlag {
                 if (!testState(pl.getLocation())) continue;
 
                 for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(owner))) {
-                    pet.despawn(PetDespawnReason.TELEPORT);
+                    pet.scheduleDespawn(PetDespawnReason.TELEPORT);
                 }
 
                 Language.CANT_FOLLOW_HERE.sendMessage(pl);

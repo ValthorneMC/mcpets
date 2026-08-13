@@ -157,7 +157,6 @@ public class PetListener implements Listener {
         for (Pet pet : new ArrayList<>(pets)) {
             // Capture skin data before despawn clears it
             PetSkin activeSkin = pet.getActiveSkin();
-            pet.despawn(PetDespawnReason.DISCONNECTION);
             if (p.hasPermission(pet.getPermission())) {
                 String encoded = PlayerData.encodeActivePet(pet.getId(),
                         activeSkin != null ? activeSkin.getPathId() : null);
@@ -174,6 +173,7 @@ public class PetListener implements Listener {
                     }
                 }
             }
+            pet.scheduleDespawn(PetDespawnReason.DISCONNECTION);
         }
         // Velocity: persist or clear active pet record so destination server restores correctly
         if (GlobalConfig.getInstance().isVelocityEnabled()
@@ -295,7 +295,7 @@ public class PetListener implements Listener {
         Player p = e.getPlayer();
         for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(p.getUniqueId()))) {
             if (pet.getTamingProgress() < 1) continue;
-            pet.despawn(PetDespawnReason.TELEPORT);
+            pet.scheduleDespawn(PetDespawnReason.TELEPORT);
             MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(p,
                     () -> pet.spawn(p, p.getLocation()), 20L);
         }
@@ -346,7 +346,7 @@ public class PetListener implements Listener {
         UUID uuid = e.getPlayer().getUniqueId();
         if (e.getNewGameMode() != GameMode.SPECTATOR) return;
         for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(uuid))) {
-            pet.despawn(PetDespawnReason.GAMEMODE);
+            pet.scheduleDespawn(PetDespawnReason.GAMEMODE);
         }
     }
 
@@ -362,7 +362,7 @@ public class PetListener implements Listener {
         if (pet == null) return;
         if (pet.isRemoved()) return;
 
-        pet.despawn(PetDespawnReason.MYTHICMOBS);
+        pet.scheduleDespawn(PetDespawnReason.MYTHICMOBS);
 
         UUID ownerUUID = pet.getOwner();
         if (ownerUUID == null) return;
@@ -395,7 +395,7 @@ public class PetListener implements Listener {
         if (pet == null) return;
         if (pet.isRemoved()) return;
 
-        pet.despawn(PetDespawnReason.DEATH);
+        pet.scheduleDespawn(PetDespawnReason.DEATH);
 
         if (pet.getOwner() == null) return;
 
@@ -457,7 +457,7 @@ public class PetListener implements Listener {
             e.setCancelled(true);
             Debugger.send("[EntityMountPetEvent] §c" + player.getName() + " can not mount model of " + pet.getId() + " as a region is preventing mounting.");
             Language.NOT_MOUNTABLE_HERE.sendMessage(player);
-            if (pet.isDespawnOnDismount()) pet.despawn(PetDespawnReason.FLAG);
+            if (pet.isDespawnOnDismount()) pet.scheduleDespawn(PetDespawnReason.FLAG);
         }
     }
 

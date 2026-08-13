@@ -34,7 +34,7 @@ public class ModelEngineListeners implements Listener {
 
         Entity entity = bukkitEntity.getOriginal();
 
-        Bukkit.getScheduler().runTask(MCPets.getInstance(), () -> {
+        MCPets.getInstance().getSchedulerAdapter().runAtEntity(entity, () -> {
             Pet pet = Pet.getFromEntity(entity);
             if (pet != null && pet.isDespawnOnDismount()) {
                 pet.despawn(PetDespawnReason.DISMOUNT);
@@ -80,7 +80,7 @@ public class ModelEngineListeners implements Listener {
             e.setCancelled(true);
             Debugger.send("§c" + player.getName() + " can not mount model of " + pet.getId() + " as a region is preventing mounting.");
             Language.NOT_MOUNTABLE_HERE.sendMessage(player);
-            if (pet.isDespawnOnDismount()) pet.despawn(PetDespawnReason.FLAG);
+            if (pet.isDespawnOnDismount()) pet.scheduleDespawn(PetDespawnReason.FLAG);
             return;
         }
 

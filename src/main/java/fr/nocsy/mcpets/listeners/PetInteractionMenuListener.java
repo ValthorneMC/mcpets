@@ -68,7 +68,7 @@ public class PetInteractionMenuListener implements Listener {
     }
 
     public static void revoke(final Player p, @NotNull final Pet pet) {
-        pet.despawn(PetDespawnReason.REVOKE);
+        pet.scheduleDespawn(PetDespawnReason.REVOKE);
         Language.REVOKED.sendMessage(p);
     }
 

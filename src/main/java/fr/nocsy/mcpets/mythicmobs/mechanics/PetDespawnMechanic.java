@@ -29,7 +29,7 @@ public class PetDespawnMechanic extends SkillMechanic implements ITargetedEntity
             return SkillResult.CONDITION_FAILED;
         }
 
-        pet.despawn(PetDespawnReason.PETDESPAWN_SKILL);
+        pet.scheduleDespawn(PetDespawnReason.PETDESPAWN_SKILL);
 
         return SkillResult.SUCCESS;
     }

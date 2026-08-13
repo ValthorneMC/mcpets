@@ -9,6 +9,7 @@ import lombok.Setter;
 import net.kyori.adventure.text.Component;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -1174,6 +1175,39 @@ public class Pet {
         }
         syncActivePetsToDb(reason);
         return false;
+    }
+
+    @NotNull
+    public SchedulerTask scheduleDespawn(@NotNull final PetDespawnReason reason) {
+        return scheduleDespawn(reason, null);
+    }
+
+    @NotNull
+    public SchedulerTask scheduleDespawn(@NotNull final PetDespawnReason reason,
+                                         @Nullable final Runnable completionTask) {
+        final Runnable despawnTask = () -> {
+            despawn(reason);
+            if (completionTask != null) {
+                completionTask.run();
+            }
+        };
+
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(),
+                    despawnTask
+            );
+        }
+
+        if (owner != null) {
+            final Player ownerPlayer = Bukkit.getPlayer(owner);
+            if (ownerPlayer != null) {
+                return MCPets.getInstance().getSchedulerAdapter().runAtEntity(ownerPlayer,
+                        despawnTask);
+            }
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runGlobal(despawnTask);
     }
 
     /**

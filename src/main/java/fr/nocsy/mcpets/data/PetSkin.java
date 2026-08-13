@@ -202,19 +202,19 @@ public class PetSkin {
         boolean hasRider = instancePet.hasMount(Bukkit.getPlayer(instancePet.getOwner()));
         instancePet.setActiveSkin(this);
 
-        instancePet.despawn(PetDespawnReason.SKIN);
-
-        MCPets.getInstance().getSchedulerAdapter().runAtLocationDelayed(loc, () -> {
-            instancePet.spawn(loc, false);
-            if (hasRider && instancePet.getActiveMob() != null
-                    && instancePet.getActiveMob().getEntity().getBukkitEntity() != null) {
-                MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
-                        instancePet.getActiveMob().getEntity().getBukkitEntity(),
-                        () -> instancePet.setMount(Bukkit.getPlayer(instancePet.getOwner())),
-                        2L
-                );
-            }
-        }, 2L);
+        instancePet.scheduleDespawn(PetDespawnReason.SKIN, () ->
+                MCPets.getInstance().getSchedulerAdapter().runAtLocationDelayed(loc, () -> {
+                    instancePet.spawn(loc, false);
+                    if (hasRider && instancePet.getActiveMob() != null
+                            && instancePet.getActiveMob().getEntity().getBukkitEntity() != null) {
+                        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                                instancePet.getActiveMob().getEntity().getBukkitEntity(),
+                                () -> instancePet.setMount(Bukkit.getPlayer(instancePet.getOwner())),
+                                2L
+                        );
+                    }
+                }, 2L)
+        );
         return true;
     }
 }

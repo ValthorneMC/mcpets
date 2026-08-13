@@ -271,13 +271,14 @@ public class PetLevel {
 
                 // Despawn the previous pet
                 if (activePet != null && activePet.isStillHere()) {
-                    activePet.despawn(PetDespawnReason.EVOLUTION);
+                    activePet.scheduleDespawn(PetDespawnReason.EVOLUTION, () -> {
+                        petEvolution.spawn(loc, false);
+                        petEvolution.setCheckPermission(true);
+                    });
+                } else {
+                    petEvolution.spawn(loc, false);
+                    petEvolution.setCheckPermission(true);
                 }
-
-                // Spawn the evolution
-                petEvolution.spawn(loc, false);
-                // Re-enable permission checking now that LuckPerms has propagated
-                petEvolution.setCheckPermission(true);
             }, delayBeforeEvolution);
         });
 
