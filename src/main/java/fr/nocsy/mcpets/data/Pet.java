@@ -1256,14 +1256,40 @@ public class Pet {
         }
     }
 
+    @NotNull
+    public SchedulerTask scheduleTeleport(@NotNull final Location location) {
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(),
+                    () -> teleport(location)
+            );
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runAtLocation(location,
+                () -> teleport(location));
+    }
+
     /**
      * Teleport the pet to the player
      */
-    public void teleportToPlayer(final Player p) {
-        final Location loc = Utils.bruised(p.getLocation(), Math.min(getSpawnRange(), getDistance()));
-        Debugger.send("§7teleporting pet " + id + " to player " + p.getName());
+    public void teleportToPlayer(@NotNull final Player player) {
+        final Location loc = Utils.bruised(player.getLocation(), Math.min(getSpawnRange(), getDistance()));
+        Debugger.send("§7teleporting pet " + id + " to player " + player.getName());
         if (isStillHere())
             this.teleport(loc);
+    }
+
+    @NotNull
+    public SchedulerTask scheduleTeleportToPlayer(@NotNull final Player player) {
+        return MCPets.getInstance().getSchedulerAdapter().runAtEntity(player, () -> {
+            final Location location = Utils.bruised(player.getLocation(), Math.min(getSpawnRange(), getDistance()));
+            if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+                MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                        activeMob.getEntity().getBukkitEntity(),
+                        () -> teleport(location)
+                );
+            }
+        });
     }
 
     /**
