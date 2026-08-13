@@ -181,10 +181,10 @@ public class PetListener implements Listener {
             if (!activePetIds.isEmpty()) {
                 final List<String> petIdsToSave = new ArrayList<>(activePetIds);
                 final Map<String, String> skinIdsToSave = new HashMap<>(activeSkinIds);
-                Bukkit.getScheduler().runTaskAsynchronously(MCPets.getInstance(),
+                MCPets.getInstance().getSchedulerAdapter().runAsync(
                         () -> Databases.saveActivePet(uuid, petIdsToSave, skinIdsToSave));
             } else {
-                Bukkit.getScheduler().runTaskAsynchronously(MCPets.getInstance(),
+                MCPets.getInstance().getSchedulerAdapter().runAsync(
                         () -> Databases.clearActivePet(uuid));
             }
         }

@@ -91,7 +91,7 @@ public class PetStats {
     private void updateChangingData() {
         refreshMaxHealth();
         updateHealth();
-        respawnTimer = new PetTimer(currentLevel.getRespawnCooldown(), 20, () -> {
+        respawnTimer = new PetTimer(pet, currentLevel.getRespawnCooldown(), 20, () -> {
             // If it's an initialization run, we don't want the respawn to happen
             if (initializingRun) {
                 initializingRun = false;
@@ -111,7 +111,7 @@ public class PetStats {
                 }
             }
         });
-        revokeTimer = new PetTimer(currentLevel.getRevokeCooldown(), 20, null);
+        revokeTimer = new PetTimer(pet, currentLevel.getRevokeCooldown(), 20, null);
     }
 
     /**
@@ -136,7 +136,7 @@ public class PetStats {
             return;
         }
 
-        regenerationTimer = new PetTimer(Integer.MAX_VALUE, 20, null);
+        regenerationTimer = new PetTimer(pet, Integer.MAX_VALUE, 20, null);
         regenerationTimer.launch(() -> {
             if (pet.isStillHere()) {
                 double value = Math.min(currentHealth + currentLevel.getRegeneration(), currentLevel.getMaxHealth());

@@ -191,7 +191,8 @@ public class PetFood {
     public void registerWaitingList(UUID owner, long delay) {
         if (!waitingListApply.add(owner)) return;
 
-        Bukkit.getScheduler().runTaskLater(MCPets.getInstance(), () -> waitingListApply.remove(owner), delay);
+        MCPets.getInstance().getSchedulerAdapter().runGlobalDelayed(
+                () -> waitingListApply.remove(owner), delay);
     }
 
     private int getRemainingCooldownInSeconds(Pet pet) {

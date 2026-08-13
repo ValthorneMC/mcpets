@@ -70,7 +70,12 @@ public class PetFoodBuff {
 
         PetFoodBuff instance = this;
 
-        Bukkit.getScheduler().runTaskLater(MCPets.getInstance(), instance::stop, duration);
+        if (pet.getActiveMob() != null && pet.getActiveMob().getEntity().getBukkitEntity() != null) {
+            MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                    pet.getActiveMob().getEntity().getBukkitEntity(), instance::stop, duration);
+        } else {
+            MCPets.getInstance().getSchedulerAdapter().runGlobalDelayed(instance::stop, duration);
+        }
     }
 
     public void stop() {
