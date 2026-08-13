@@ -16,7 +16,8 @@ public class VanillaDismountListener implements Listener {
 		if (!(entity instanceof Player))
 			return;
 
-		UUID petUUID = e.getDismounted().getUniqueId();
-		MCPets.getModeler().handleVanillaDismount(petUUID, entity);
+		final UUID petUUID = e.getDismounted().getUniqueId();
+		MCPets.getInstance().getSchedulerAdapter().runAtEntity(e.getDismounted(),
+				() -> MCPets.getModeler().handleVanillaDismount(petUUID, entity));
 	}
 }
