@@ -199,7 +199,8 @@ public class PetSkin {
 
         Location loc = instancePet.getActiveMob().getEntity().getBukkitEntity().getLocation();
 
-        boolean hasRider = instancePet.hasMount(Bukkit.getPlayer(instancePet.getOwner()));
+        final Player rider = Bukkit.getPlayer(instancePet.getOwner());
+        boolean hasRider = rider != null && instancePet.hasMount(rider);
         instancePet.setActiveSkin(this);
 
         instancePet.scheduleDespawn(PetDespawnReason.SKIN, () ->
@@ -209,7 +210,7 @@ public class PetSkin {
                             && instancePet.getActiveMob().getEntity().getBukkitEntity() != null) {
                         MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
                                 instancePet.getActiveMob().getEntity().getBukkitEntity(),
-                                () -> instancePet.setMount(Bukkit.getPlayer(instancePet.getOwner())),
+                                () -> instancePet.scheduleMount(rider, null),
                                 2L
                         );
                     }

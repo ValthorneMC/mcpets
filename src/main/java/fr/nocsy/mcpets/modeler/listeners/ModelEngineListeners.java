@@ -1,6 +1,5 @@
 package fr.nocsy.mcpets.modeler.listeners;
 
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.event.Listener;
 import org.bukkit.event.EventHandler;
@@ -44,8 +43,6 @@ public class ModelEngineListeners implements Listener {
 
     @EventHandler
     public void mountingPet(ModelMountEvent e) {
-        if (!Bukkit.isPrimaryThread()) return;
-
         if (e.getPassenger() == null) return;
 
         ActiveModel vehicle = e.getVehicle();

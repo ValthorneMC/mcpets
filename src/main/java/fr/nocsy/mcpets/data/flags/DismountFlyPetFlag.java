@@ -48,13 +48,10 @@ public class DismountFlyPetFlag extends AbstractFlag implements StoppableFlag {
 
                     final Player p = Bukkit.getPlayer(owner);
                     if (p != null) {
-                        if (!pet.hasMount(p))
-                            continue;
-
                         final boolean hasToBeEjected = testState(p.getLocation());
 
                         if (hasToBeEjected) {
-                            pet.dismount(p);
+                            pet.scheduleDismount(p);
                             Language.NOT_MOUNTABLE_HERE.sendMessage(p);
                         }
                     }

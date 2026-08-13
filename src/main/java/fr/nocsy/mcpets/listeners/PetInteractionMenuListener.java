@@ -48,8 +48,11 @@ public class PetInteractionMenuListener implements Listener {
     public static void mount(@NotNull final Player p, final Pet pet) {
         if (p.isInsideVehicle()) {
             Language.ALREADY_INSIDE_VEHICULE.sendMessage(p);
-        } else if (!pet.setMount(p)) {
-            Language.NOT_MOUNTABLE.sendMessage(p);
+        } else {
+            pet.scheduleMount(p, mounted -> {
+                if (!mounted)
+                    Language.NOT_MOUNTABLE.sendMessage(p);
+            });
         }
     }
 

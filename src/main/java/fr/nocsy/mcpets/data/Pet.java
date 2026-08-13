@@ -2,6 +2,7 @@ package fr.nocsy.mcpets.data;
 
 import java.util.*;
 import java.util.logging.Level;
+import java.util.function.Consumer;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -763,9 +764,10 @@ public class Pet {
                     MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(ent, () -> {
                         final Player p = Bukkit.getPlayer(owner);
                         if (p != null && autoRide) {
-                            final boolean mounted = setMount(p);
-                            if (!mounted)
-                                Language.NOT_MOUNTABLE.sendMessage(p);
+                            scheduleMount(p, mounted -> {
+                                if (!mounted)
+                                    Language.NOT_MOUNTABLE.sendMessage(p);
+                            });
                         }
                     }, 5L);
                 }
@@ -1413,6 +1415,7 @@ public class Pet {
      */
     public boolean setMount(final Entity ent) {
         if (ent == null) return false;
+        if (!isStillHere()) return false;
 
         final EntityMountPetEvent event = new EntityMountPetEvent(ent, this);
         final EntityMountEvent vanillaMountEvent = new EntityMountEvent(ent, activeMob.getEntity().getBukkitEntity());
@@ -1422,19 +1425,35 @@ public class Pet {
         // We still return true as it's a normal situation, not linked to mounting point issue
         if (event.isCancelled() || vanillaMountEvent.isCancelled()) return true;
 
-        if (isStillHere()) {
-            final UUID petUUID = activeMob.getEntity().getUniqueId();
-            try {
-                if (!MCPets.getModeler().mountDriver(petUUID, ent, mountType)) {
-                    activeMob.getEntity().getBukkitEntity().addPassenger(ent);
-                    return false;
-                }
-            } catch (final IllegalStateException ex) {
-                Language.ALREADY_MOUNTING.sendMessageFormatted(ent);
+        final UUID petUUID = activeMob.getEntity().getUniqueId();
+        try {
+            if (!MCPets.getModeler().mountDriver(petUUID, ent, mountType)) {
+                activeMob.getEntity().getBukkitEntity().addPassenger(ent);
+                return false;
             }
-            return true;
+        } catch (final IllegalStateException ex) {
+            Language.ALREADY_MOUNTING.sendMessageFormatted(ent);
         }
-        return false;
+        return true;
+    }
+
+    @NotNull
+    public SchedulerTask scheduleMount(@NotNull final Entity rider,
+                                       @Nullable final Consumer<Boolean> completionHandler) {
+        final Runnable mountTask = () -> {
+            final boolean mounted = setMount(rider);
+            if (completionHandler != null) {
+                MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider,
+                        () -> completionHandler.accept(mounted));
+            }
+        };
+
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(), mountTask);
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider, mountTask);
     }
 
     /**
@@ -1458,6 +1477,28 @@ public class Pet {
             final UUID localUUID = activeMob.getEntity().getUniqueId();
             MCPets.getModeler().dismountRider(localUUID, ent);
         }
+    }
+
+    @NotNull
+    public SchedulerTask scheduleDismount(@NotNull final Entity rider) {
+        return scheduleDismount(rider, null);
+    }
+
+    @NotNull
+    public SchedulerTask scheduleDismount(@NotNull final Entity rider, @Nullable final Runnable completionTask) {
+        final Runnable dismountTask = () -> {
+            dismount(rider);
+            if (completionTask != null) {
+                MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider, completionTask);
+            }
+        };
+
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(), dismountTask);
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider, dismountTask);
     }
 
     /**

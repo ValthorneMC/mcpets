@@ -10,7 +10,6 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityMountEvent;
-import org.bukkit.scheduler.BukkitRunnable;
 
 /**
  * Detects players ending up clipped inside a solid block right after mounting
@@ -35,18 +34,16 @@ public class MountWallClipListener implements Listener {
         if (!Utils.isLocationClearForMount(safeLoc))
             return;
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
+        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(player, () -> {
                 if (!player.isOnline() || player.isDead())
                     return;
                 if (Utils.isLocationClearForMount(player.getLocation()))
                     return;
 
-                pet.dismount(player);
-                player.teleport(safeLoc);
-                Language.NOT_MOUNTABLE_HERE.sendMessage(player);
-            }
-        }.runTaskLater(MCPets.getInstance(), 2L);
+                pet.scheduleDismount(player, () -> {
+                    player.teleport(safeLoc);
+                    Language.NOT_MOUNTABLE_HERE.sendMessage(player);
+                });
+        }, 2L);
     }
 }

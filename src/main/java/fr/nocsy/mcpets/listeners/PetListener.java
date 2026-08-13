@@ -305,7 +305,7 @@ public class PetListener implements Listener {
     public void teleport(PlayerTeleportEvent e) {
         Player p = e.getPlayer();
         for (Pet pet : Pet.getActivePetsForOwner(p.getUniqueId())) {
-            pet.dismount(p);
+            pet.scheduleDismount(p);
         }
     }
 
@@ -324,7 +324,7 @@ public class PetListener implements Listener {
 
             Pet pet = Pet.fromOwner(p.getUniqueId());
             if (pet != null && pet.hasMount(p)) {
-                pet.dismount(p);
+                pet.scheduleDismount(p);
             }
         }
     }
