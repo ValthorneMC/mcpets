@@ -90,11 +90,11 @@ public class MCPets extends JavaPlugin {
         // Run DB initialization asynchronously to avoid freezing the main thread.
         // Tasks that depend on isDatabaseSupport() being correctly set (autosave scheduler,
         // Velocity init) must run AFTER this completes — see scheduleDbDependentTasks().
-        Bukkit.getScheduler().runTaskAsynchronously(instance, () -> {
+        instance.getSchedulerAdapter().runAsync(() -> {
             Databases.init();
             PlayerData.initAll();
-            // Hop back to main thread for tasks that must schedule on the main scheduler
-            Bukkit.getScheduler().runTask(instance, MCPets::scheduleDbDependentTasks);
+            // Hop back to global region scheduler for tasks that must schedule globally
+            instance.getSchedulerAdapter().runGlobal(MCPets::scheduleDbDependentTasks);
         });
 
         for (final EditorItems item : EditorItems.values()) {
@@ -162,7 +162,7 @@ public class MCPets extends JavaPlugin {
         EventListener.init(this);
         modeler.registerListeners(this);
 
-        Bukkit.getScheduler().runTask(this, () -> {
+        getSchedulerAdapter().runGlobal(() -> {
             loadConfigs();
             // PetStats.saveStats() and VelocitySyncManager.init() are scheduled inside
             // loadConfigs() once async DB init completes — see scheduleDbDependentTasks()

@@ -28,9 +28,11 @@ import fr.nocsy.mcpets.utils.debug.Debugger;
 import fr.nocsy.mcpets.utils.PetAnnouncement;
 import fr.nocsy.mcpets.data.livingpets.PetLevel;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 public class PetConfig extends AbstractConfig {
 
-    private static Map<String, PetConfig> petConfigMapping = new HashMap<>();
+    private static Map<String, PetConfig> petConfigMapping = new ConcurrentHashMap<>();
 
     public static String getFilePath(final String petId) {
         final PetConfig config = getConfig(petId);

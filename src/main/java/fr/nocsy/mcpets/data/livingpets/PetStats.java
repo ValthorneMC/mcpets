@@ -470,15 +470,15 @@ public class PetStats {
         // Runs Async if it's a SQL, sync if not coz YAML doesn't support Async
         if (GlobalConfig.getInstance().isDatabaseSupport()) {
             // TODO: For now, we make the AutoSave only saving the connected players for MySQL users
-            Bukkit.getScheduler().runTaskTimerAsynchronously(MCPets.getInstance(), () -> {
+            MCPets.getInstance().getSchedulerAdapter().runAsyncAtFixedRate(() -> {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     Databases.savePlayerData(p.getUniqueId());
                 }
-            }, delay, delay);
+            }, delay, delay, java.util.concurrent.TimeUnit.MILLISECONDS);
             return;
         }
 
-        Bukkit.getScheduler().runTaskTimer(MCPets.getInstance(), () ->
+        MCPets.getInstance().getSchedulerAdapter().runGlobalAtFixedRate(() ->
                 new ArrayList<>(petStatsList).forEach(PetStats::save), delay, delay);
     }
 
