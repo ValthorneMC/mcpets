@@ -19,10 +19,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class PetSkin {
 
-    private static final HashMap<String, ArrayList<PetSkin>> petSkins = new HashMap<>();
+    private static final ConcurrentHashMap<String, CopyOnWriteArrayList<PetSkin>> petSkins = new ConcurrentHashMap<>();
 
     @Getter
     private String uuid;
@@ -55,12 +57,7 @@ public class PetSkin {
         PetSkin petSkin = new PetSkin(pathId, objectPet, modelSkinId, permission);
         petSkin.setIcon(icon);
 
-        ArrayList<PetSkin> listSkins = petSkins.get(objectPet.getId());
-        if (listSkins == null)
-            listSkins = new ArrayList<>();
-
-        listSkins.add(petSkin);
-        petSkins.put(objectPet.getId(), listSkins);
+        petSkins.computeIfAbsent(objectPet.getId(), k -> new CopyOnWriteArrayList<>()).add(petSkin);
     }
 
     /**
@@ -74,7 +71,7 @@ public class PetSkin {
             if (code.length > 0 && code[0].equals("MCPetsSkins")) {
                 String petId = code[1];
                 String skinUuid = code[2];
-                ArrayList<PetSkin> skins = petSkins.get(petId);
+                List<PetSkin> skins = petSkins.get(petId);
                 if (skins != null) {
                     Optional<PetSkin> opt = skins.stream().filter(petSkin -> petSkin.getUuid().equals(skinUuid)).findFirst();
                     return opt.orElse(null);
@@ -87,9 +84,9 @@ public class PetSkin {
     /**
      * Fetch all skins from the pet
      */
-    public static ArrayList<PetSkin> getSkins(Pet pet) {
+    public static List<PetSkin> getSkins(Pet pet) {
         if (!petSkins.containsKey(pet.getId()))
-            return new ArrayList<>();
+            return new CopyOnWriteArrayList<>();
         return petSkins.get(pet.getId());
     }
 
@@ -143,7 +140,7 @@ public class PetSkin {
      */
     public static void clearList(Pet pet) {
         if (pet.hasSkins()) {
-            petSkins.put(pet.getId(), new ArrayList<>());
+            petSkins.put(pet.getId(), new CopyOnWriteArrayList<>());
         }
     }
 

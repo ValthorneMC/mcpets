@@ -2,8 +2,9 @@ package fr.nocsy.mcpets.data.livingpets;
 
 import java.util.Map;
 import java.util.List;
-import java.util.HashMap;
 import java.util.ArrayList;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import lombok.Getter;
 
@@ -18,7 +19,7 @@ import fr.nocsy.mcpets.utils.debug.Debugger;
 
 public class PetFoodBuff {
 
-    public static Map<Pet, List<PetFoodBuff>> runningBuffs = new HashMap<>();
+    public static final Map<Pet, List<PetFoodBuff>> runningBuffs = new ConcurrentHashMap<>();
 
     @Getter
     private PetFoodType type;
@@ -56,9 +57,8 @@ public class PetFoodBuff {
     }
 
     private void runTask() {
-        List<PetFoodBuff> buffs = getBuffs(pet);
+        List<PetFoodBuff> buffs = runningBuffs.computeIfAbsent(pet, k -> new CopyOnWriteArrayList<>());
         buffs.add(this);
-        runningBuffs.put(pet, buffs);
 
         Debugger.send("§7Applying buff §a" + type.name() + "§7 on §6" + pet.getId() + "§7 for §a" + duration + "§7 ticks.");
         Debugger.send("§7Buff information: " +

@@ -7,13 +7,13 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import fr.nocsy.mcpets.scheduler.SchedulerTask;
 
 public class PetTimer {
 
     @Getter
-    private static HashMap<PetTimer, SchedulerTask> runningTimers = new HashMap<>();
+    private static final ConcurrentHashMap<PetTimer, SchedulerTask> runningTimers = new ConcurrentHashMap<>();
 
     @Getter
     private int cooldown;

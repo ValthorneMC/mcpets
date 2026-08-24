@@ -274,7 +274,7 @@ public enum EditorState {
             final Pet pet = PetConfig.loadConfigPet(editorPet.getPetId());
             final String filePath = PetConfig.getFilePath(pet.getId());
 
-            final ArrayList<PetSkin> skins = PetSkin.getSkins(pet);
+            final List<PetSkin> skins = PetSkin.getSkins(pet);
             for(int i = 0; i < 45 && i < skins.size(); i++) {
                 final PetSkin skin = skins.get(i);
 

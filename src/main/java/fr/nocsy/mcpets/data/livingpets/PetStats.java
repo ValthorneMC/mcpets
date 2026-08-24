@@ -3,6 +3,7 @@ package fr.nocsy.mcpets.data.livingpets;
 import java.util.List;
 import java.util.UUID;
 import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import lombok.Getter;
@@ -412,7 +413,7 @@ public class PetStats {
 
     //------------ Static code -------------//
 
-    private static List<PetStats> petStatsList = new ArrayList<>();
+    private static final List<PetStats> petStatsList = new CopyOnWriteArrayList<>();
 
     public static List<PetStats> getPetStats(UUID owner) {
         return petStatsList.stream()
@@ -502,14 +503,17 @@ public class PetStats {
             return false;
         }
 
-        // If the pet stats is already registered, then we overwrite the previous one
-        if (get(petStats.getPet().getId(), petStats.getPet().getOwner()) != null) {
-            petStatsList.remove(get(petStats.getPet().getId(), petStats.getPet().getOwner()));
-        }
+        synchronized (petStatsList) {
+            // If the pet stats is already registered, then we overwrite the previous one
+            PetStats existing = get(petStats.getPet().getId(), petStats.getPet().getOwner());
+            if (existing != null) {
+                petStatsList.remove(existing);
+            }
 
-        // We register the pet stats if we found no matches for the same pet
-        // and the same owner in the current registration
-        petStatsList.add(petStats);
+            // We register the pet stats if we found no matches for the same pet
+            // and the same owner in the current registration
+            petStatsList.add(petStats);
+        }
         return true;
     }
 

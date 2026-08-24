@@ -1,6 +1,8 @@
 package fr.nocsy.mcpets.data;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
 import java.util.function.Consumer;
 
@@ -73,14 +75,14 @@ public class Pet {
     //********** Static values **********
 
     @Getter
-    private static Map<UUID, List<Pet>> activePets = new HashMap<>();
+    private static final Map<UUID, List<Pet>> activePets = new ConcurrentHashMap<>();
     @Getter
-    private static List<Pet> objectPets = new ArrayList<>();
+    private static final List<Pet> objectPets = new CopyOnWriteArrayList<>();
     @Getter
-    private static Map<UUID, HashMap<String, PetSkin>> activeSkinsMap = new HashMap<>();
+    private static final Map<UUID, Map<String, PetSkin>> activeSkinsMap = new ConcurrentHashMap<>();
 
     // Prevent race conditions during spawn
-    private static Set<String> spawningPets = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final Set<String> spawningPets = ConcurrentHashMap.newKeySet();
 
     //********** Global Pet **********
 
@@ -245,12 +247,8 @@ public class Pet {
      */
     public void setActiveSkin(final PetSkin skin) {
         if (owner != null) {
-            HashMap<String, PetSkin> ownerPetSkins = activeSkinsMap.get(owner);
-            if (ownerPetSkins == null)
-                ownerPetSkins = new HashMap<String, PetSkin>();
-
+            Map<String, PetSkin> ownerPetSkins = activeSkinsMap.computeIfAbsent(owner, k -> new ConcurrentHashMap<>());
             ownerPetSkins.put(id, skin);
-            activeSkinsMap.put(owner, ownerPetSkins);
         }
     }
 
@@ -259,7 +257,7 @@ public class Pet {
      */
     public PetSkin getActiveSkin() {
         if (owner != null) {
-            final HashMap<String, PetSkin> ownerPetSkins = activeSkinsMap.get(owner);
+            final Map<String, PetSkin> ownerPetSkins = activeSkinsMap.get(owner);
             if (ownerPetSkins != null) {
                 return ownerPetSkins.get(id);
             }
@@ -379,27 +377,24 @@ public class Pet {
      * Get all active pets for a player
      */
     public static List<Pet> getActivePetsForOwner(final UUID owner) {
-        return Pet.getActivePets().getOrDefault(owner, new ArrayList<>());
+        return Pet.getActivePets().getOrDefault(owner, new CopyOnWriteArrayList<>());
     }
 
     /**
      * Add a pet to a player's active pets list
      */
     public static void addActivePet(final UUID owner, final Pet pet) {
-        activePets.computeIfAbsent(owner, k -> new ArrayList<>()).add(pet);
+        activePets.computeIfAbsent(owner, k -> new CopyOnWriteArrayList<>()).add(pet);
     }
 
     /**
      * Remove a pet from a player's active pets list
      */
     public static void removeActivePet(final UUID owner, final Pet pet) {
-        final List<Pet> pets = activePets.get(owner);
-        if (pets != null) {
+        activePets.computeIfPresent(owner, (key, pets) -> {
             pets.remove(pet);
-            if (pets.isEmpty()) {
-                activePets.remove(owner);
-            }
-        }
+            return pets.isEmpty() ? null : pets;
+        });
     }
 
     /**
