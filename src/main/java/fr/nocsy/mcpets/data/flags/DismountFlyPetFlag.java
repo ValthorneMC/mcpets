@@ -3,14 +3,15 @@ package fr.nocsy.mcpets.data.flags;
 import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.data.Pet;
 import fr.nocsy.mcpets.data.config.Language;
-import org.bukkit.Bukkit;
+import fr.nocsy.mcpets.scheduler.SchedulerTask;
+import fr.nocsy.mcpets.utils.EntityAccessHelper;
 import org.bukkit.entity.Player;
 
 import java.util.UUID;
 
 public class DismountFlyPetFlag extends AbstractFlag implements StoppableFlag {
 
-    private int task;
+    private SchedulerTask task;
 
     public static String NAME = "mcpets-dismount-flying";
 
@@ -33,7 +34,7 @@ public class DismountFlyPetFlag extends AbstractFlag implements StoppableFlag {
             MCPets.getLog().info("Starting flag " + getFlagName() + ".");
         }
 
-        task = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(getMCPetsInstance(), () -> {
+        task = MCPets.getInstance().getSchedulerAdapter().runGlobalAtFixedRate(() -> {
             if (MCPets.getMythicMobs() == null)
                 return;
 
@@ -46,15 +47,14 @@ public class DismountFlyPetFlag extends AbstractFlag implements StoppableFlag {
                     if (!MCPets.getModeler().isFlyingMount(pet, owner))
                         continue;
 
-                    final Player p = Bukkit.getPlayer(owner);
-                    if (p != null) {
+                    EntityAccessHelper.withPlayer(owner, p -> {
                         final boolean hasToBeEjected = testState(p.getLocation());
 
                         if (hasToBeEjected) {
                             pet.scheduleDismount(p);
                             Language.NOT_MOUNTABLE_HERE.sendMessage(p);
                         }
-                    }
+                    });
                 }
             }
         }, 0L, 20L);
@@ -62,6 +62,9 @@ public class DismountFlyPetFlag extends AbstractFlag implements StoppableFlag {
 
     @Override
     public void stop() {
-        Bukkit.getServer().getScheduler().cancelTask(task);
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
     }
 }

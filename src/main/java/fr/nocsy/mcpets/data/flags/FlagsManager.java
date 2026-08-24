@@ -1,7 +1,7 @@
 package fr.nocsy.mcpets.data.flags;
 
 import java.util.List;
-import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 import lombok.Getter;
 
@@ -9,7 +9,7 @@ import fr.nocsy.mcpets.MCPets;
 
 public class FlagsManager {
 
-    private static final List<AbstractFlag> flags = new ArrayList<>();
+    private static final List<AbstractFlag> flags = new CopyOnWriteArrayList<>();
 
     @Getter
     private static boolean registered;
