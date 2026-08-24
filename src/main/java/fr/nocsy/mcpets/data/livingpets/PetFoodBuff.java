@@ -90,4 +90,11 @@ public class PetFoodBuff {
         return runningBuffs.getOrDefault(pet, List.of());
     }
 
+    /**
+     * Clear all active buffs
+     */
+    public static void clearAllBuffs() {
+        runningBuffs.clear();
+    }
+
 }

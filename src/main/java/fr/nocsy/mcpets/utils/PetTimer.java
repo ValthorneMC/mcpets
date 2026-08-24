@@ -84,4 +84,16 @@ public class PetTimer {
     public boolean isRunning() {
         return remainingTime > 0;
     }
+
+    /**
+     * Cancel all running timers
+     */
+    public static void cancelAllTimers() {
+        for (SchedulerTask task : runningTimers.values()) {
+            if (task != null) {
+                task.cancel();
+            }
+        }
+        runningTimers.clear();
+    }
 }

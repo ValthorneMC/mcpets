@@ -528,6 +528,23 @@ public class PetStats {
     }
 
     /**
+     * Cancel all timers for all pet stats
+     */
+    public static void cancelAllTimers() {
+        for (PetStats stats : petStatsList) {
+            if (stats.regenerationTimer != null) {
+                stats.regenerationTimer.stop(null);
+            }
+            if (stats.respawnTimer != null) {
+                stats.respawnTimer.stop(null);
+            }
+            if (stats.revokeTimer != null) {
+                stats.revokeTimer.stop(null);
+            }
+        }
+    }
+
+    /**
      * Set the pet's stats values.
      */
     public void setStats(double experience, double currentHealth, PetLevel currentLevel) {

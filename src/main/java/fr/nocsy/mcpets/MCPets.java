@@ -35,6 +35,8 @@ import fr.nocsy.mcpets.data.flags.FlagsManager;
 import fr.nocsy.mcpets.modeler.AbstractModeler;
 import fr.nocsy.mcpets.listeners.EventListener;
 import fr.nocsy.mcpets.data.livingpets.PetStats;
+import fr.nocsy.mcpets.data.livingpets.PetFoodBuff;
+import fr.nocsy.mcpets.utils.PetTimer;
 import fr.nocsy.mcpets.data.config.GlobalConfig;
 import fr.nocsy.mcpets.data.config.PetFoodConfig;
 import fr.nocsy.mcpets.data.config.CategoryConfig;
@@ -184,63 +186,133 @@ public class MCPets extends JavaPlugin {
 
     @Override
     public void onDisable() {
-        getLog().info("-=-=-=-= MCPets disabled =-=-=-=-");
+        getLog().info("-=-=-=-= MCPets shutdown started =-=-=-=-");
+
+        // Step 1: Cancel all timers
+        getLog().info("[1/10] Cancelling all timers...");
+        try {
+            PetTimer.cancelAllTimers();
+            PetStats.cancelAllTimers();
+            PetFoodBuff.clearAllBuffs();
+            getLog().info("[1/10] Timers cancelled successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[1/10] Error cancelling timers", e);
+        }
+
+        // Step 2: Unregister all event listeners
+        getLog().info("[2/10] Unregistering event listeners...");
+        try {
+            EventListener.unregisterAll();
+            getLog().info("[2/10] Event listeners unregistered successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[2/10] Error unregistering listeners", e);
+        }
+
+        // Step 3: Clear editor conversations
+        getLog().info("[3/10] Clearing editor conversations...");
+        try {
+            EditorConversation.clearAll();
+            getLog().info("[3/10] Editor conversations cleared successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[3/10] Error clearing editor conversations", e);
+        }
+
+        // Step 4: Unregister modeler listeners
+        getLog().info("[4/10] Unregistering modeler listeners...");
+        try {
+            if (modeler != null) {
+                modeler.unregisterListeners();
+            }
+            getLog().info("[4/10] Modeler listeners unregistered successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[4/10] Error unregistering modeler listeners", e);
+        }
+
+        // Step 5: Stop flags
+        getLog().info("[5/10] Stopping flags...");
+        try {
+            FlagsManager.stopFlags();
+            getLog().info("[5/10] Flags stopped successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[5/10] Error stopping flags", e);
+        }
+
+        // Step 6: Stop Velocity sync
+        getLog().info("[6/10] Stopping Velocity sync...");
+        try {
+            VelocitySyncManager.shutdown();
+            getLog().info("[6/10] Velocity sync stopped successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[6/10] Error stopping Velocity sync", e);
+        }
+
+        // Step 7: Save all data with timeout
+        getLog().info("[7/10] Saving all data...");
+        try {
+            final CompletableFuture<Void> saveFuture = CompletableFuture.runAsync(() -> {
+                PetStats.saveAll();
+
+                // Save all active pets to DB before clearing them so that a server restart
+                // does not wipe the mcpets_active_pet records — players rejoin with their pet intact.
+                if (GlobalConfig.getInstance().isVelocityEnabled()
+                        && GlobalConfig.getInstance().isDatabaseSupport()) {
+                    for (Map.Entry<UUID, List<Pet>> entry : Pet.getActivePets().entrySet()) {
+                        List<Pet> activePets = entry.getValue();
+                        if (activePets == null || activePets.isEmpty()) {
+                            continue;
+                        }
+
+                        List<String> ids = new ArrayList<>();
+                        Map<String, String> skinIds = new HashMap<>();
+                        for (Pet pet : activePets) {
+                            if (pet == null) continue;
+
+                            ids.add(pet.getId());
+                            final PetSkin skin = pet.getActiveSkin();
+                            if (skin != null) {
+                                skinIds.put(pet.getId(), skin.getPathId());
+                            }
+                        }
+
+                        if (ids.isEmpty()) continue;
+
+                        Databases.saveActivePet(entry.getKey(), ids, skinIds);
+                    }
+                }
+            });
+
+            // Wait for save with timeout (30 seconds)
+            saveFuture.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            getLog().info("[7/10] Data saved successfully");
+        } catch (java.util.concurrent.TimeoutException e) {
+            getLog().log(Level.WARNING, "[7/10] Data save timed out after 30 seconds", e);
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[7/10] Error saving data", e);
+        }
+
+        // Step 8: Clear all pets
+        getLog().info("[8/10] Clearing all pets...");
+        try {
+            Pet.clearPets();
+            getLog().info("[8/10] Pets cleared successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[8/10] Error clearing pets", e);
+        }
+
+        // Step 9: Close database connection
+        getLog().info("[9/10] Closing database connection...");
+        try {
+            Databases.closeConnection();
+            getLog().info("[9/10] Database connection closed successfully");
+        } catch (Exception e) {
+            getLog().log(Level.SEVERE, "[9/10] Error closing database connection", e);
+        }
+
+        // Step 10: Final cleanup
+        getLog().info("[10/10] Final cleanup...");
+        getLog().info("-=-=-=-= MCPets shutdown complete =-=-=-=-");
         getLog().info("          See you soon           ");
         getLog().info("-=-=-=-= -=-=-=-=-=-=-=- =-=-=-=-");
-
-        // Cancel pending editor conversations before the JAR is unloaded to avoid
-        // IllegalStateException (zip file closed) if a listener fires after disable.
-        EditorConversation.clearAll();
-
-        if (modeler != null) {
-            modeler.unregisterListeners();
-        }
-
-        // Run all DB saves on a separate thread to avoid freezing the main thread
-        final CompletableFuture<Void> saveFuture = CompletableFuture.runAsync(() -> {
-            PetStats.saveAll();
-
-            // Save all active pets to DB before clearing them so that a server restart
-            // does not wipe the mcpets_active_pet records — players rejoin with their pet intact.
-            if (GlobalConfig.getInstance().isVelocityEnabled()
-                    && GlobalConfig.getInstance().isDatabaseSupport()) {
-                for (Map.Entry<UUID, List<Pet>> entry : Pet.getActivePets().entrySet()) {
-                    List<Pet> activePets = entry.getValue();
-                    if (activePets == null || activePets.isEmpty()) {
-                        continue;
-                    }
-
-                    List<String> ids = new ArrayList<>();
-                    Map<String, String> skinIds = new HashMap<>();
-                    for (Pet pet : activePets) {
-                        if (pet == null) continue;
-
-                        ids.add(pet.getId());
-                        final PetSkin skin = pet.getActiveSkin();
-                        if (skin != null) {
-                            skinIds.put(pet.getId(), skin.getPathId());
-                        }
-                    }
-
-                    if (ids.isEmpty()) continue;
-
-                    Databases.saveActivePet(entry.getKey(), ids, skinIds);
-                }
-            }
-        });
-
-        FlagsManager.stopFlags();
-        VelocitySyncManager.shutdown();
-
-        // Wait for DB saves to complete before cleaning up
-        try {
-            saveFuture.join();
-        } catch (final Exception e) {
-            getLog().log(Level.SEVERE, "Error saving data on disable", e);
-        }
-
-        Pet.clearPets();
-        Databases.closeConnection();
     }
 
     /**
