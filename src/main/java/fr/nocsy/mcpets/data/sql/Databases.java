@@ -89,6 +89,14 @@ public class Databases {
             }
         } catch (SQLException e) {
             MCPets.getInstance().getLogger().log(Level.SEVERE, "Failed to check lastActivePet column", e);
+        } finally {
+            if (rs != null) {
+                try {
+                    rs.close();
+                } catch (SQLException e) {
+                    MCPets.getInstance().getLogger().log(Level.WARNING, "Failed to close ResultSet", e);
+                }
+            }
         }
         createActivePetTable();
     }
@@ -152,6 +160,13 @@ public class Databases {
             MCPets.getInstance().getLogger().log(Level.SEVERE, "Failed to load player data from database", e1);
             return false;
         }
+        finally {
+            try {
+                playerData.close();
+            } catch (SQLException e) {
+                MCPets.getInstance().getLogger().log(Level.WARNING, "Failed to close ResultSet", e);
+            }
+        }
 
         return true;
     }
@@ -213,6 +228,13 @@ public class Databases {
         catch (SQLException e1) {
             MCPets.getInstance().getLogger().log(Level.SEVERE, "Failed to load player data for " + playerUUID, e1);
             return false;
+        }
+        finally {
+            try {
+                playerData.close();
+            } catch (SQLException e) {
+                MCPets.getInstance().getLogger().log(Level.WARNING, "Failed to close ResultSet", e);
+            }
         }
         return true;
     }
@@ -332,6 +354,12 @@ public class Databases {
             }
         } catch (SQLException e) {
             MCPets.getInstance().getLogger().log(Level.SEVERE, "Failed to load active pet record for " + uuid, e);
+        } finally {
+            try {
+                rs.close();
+            } catch (SQLException e) {
+                MCPets.getInstance().getLogger().log(Level.WARNING, "Failed to close ResultSet", e);
+            }
         }
         return null;
     }

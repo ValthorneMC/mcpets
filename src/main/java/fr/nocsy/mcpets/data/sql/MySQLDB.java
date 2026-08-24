@@ -103,16 +103,19 @@ public class MySQLDB {
         if (!GlobalConfig.getInstance().isDatabaseSupport())
             return null;
 
-        try (Connection conn = dataSource.getConnection()) {
-            try (Statement stat = conn.createStatement()) {
-                if (s.toLowerCase().startsWith("select")) {
-                    // For SELECT queries, we need to return the ResultSet
-                    // The caller is responsible for closing it
-                    return stat.executeQuery(s);
-                } else {
-                    stat.executeUpdate(s);
-                    return null;
-                }
+        try {
+            Connection conn = dataSource.getConnection();
+            Statement stat = conn.createStatement();
+            
+            if (s.toLowerCase().startsWith("select")) {
+                // For SELECT queries, return the ResultSet without closing Statement/Connection
+                // The caller is responsible for closing the ResultSet (which will also close the Statement)
+                return stat.executeQuery(s);
+            } else {
+                stat.executeUpdate(s);
+                stat.close();
+                conn.close();
+                return null;
             }
         } catch (SQLException e) {
             MCPets.getInstance().getLogger().log(Level.SEVERE, "SQL query failed: " + s, e);
@@ -124,19 +127,23 @@ public class MySQLDB {
         if (!GlobalConfig.getInstance().isDatabaseSupport())
             return null;
 
-        try (Connection conn = dataSource.getConnection()) {
-            try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-                for (int i = 0; i < params.length; i++) {
-                    pstmt.setObject(i + 1, params[i]);
-                }
-                if (sql.trim().toLowerCase().startsWith("select")) {
-                    // For SELECT queries, we need to return the ResultSet
-                    // The caller is responsible for closing it
-                    return pstmt.executeQuery();
-                } else {
-                    pstmt.executeUpdate();
-                    return null;
-                }
+        try {
+            Connection conn = dataSource.getConnection();
+            PreparedStatement pstmt = conn.prepareStatement(sql);
+            
+            for (int i = 0; i < params.length; i++) {
+                pstmt.setObject(i + 1, params[i]);
+            }
+            
+            if (sql.trim().toLowerCase().startsWith("select")) {
+                // For SELECT queries, return the ResultSet without closing Statement/Connection
+                // The caller is responsible for closing the ResultSet (which will also close the Statement)
+                return pstmt.executeQuery();
+            } else {
+                pstmt.executeUpdate();
+                pstmt.close();
+                conn.close();
+                return null;
             }
         } catch (SQLException e) {
             MCPets.getInstance().getLogger().log(Level.SEVERE, "SQL prepared query failed: " + sql, e);
