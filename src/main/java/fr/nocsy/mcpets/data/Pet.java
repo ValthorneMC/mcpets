@@ -33,6 +33,7 @@ import io.lumine.mythic.api.exceptions.InvalidMobTypeException;
 
 import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.utils.Utils;
+import fr.nocsy.mcpets.utils.EntityAccessHelper;
 import fr.nocsy.mcpets.PPermission;
 import fr.nocsy.mcpets.utils.PDCTag;
 import fr.nocsy.mcpets.data.sql.Databases;
@@ -345,8 +346,16 @@ public class Pet {
      * Get the pet from the specified entity
      */
     public static Pet getFromEntity(final Entity ent) {
-        if (ent != null &&
-                ent.hasMetadata("AlmPet") &&
+        if (ent == null) {
+            return null;
+        }
+
+        // Ensure we're in the correct region to access metadata
+        if (!Bukkit.isOwnedByCurrentRegion(ent)) {
+            return null;
+        }
+
+        if (ent.hasMetadata("AlmPet") &&
                 !ent.getMetadata("AlmPet").isEmpty() &&
                 ent.getMetadata("AlmPet").getFirst() != null &&
                 ent.getMetadata("AlmPet").getFirst().value() != null) {
@@ -397,8 +406,16 @@ public class Pet {
      * Get the pet from the last one that the player interacted with
      */
     public static Pet getFromLastInteractedWith(final Player p) {
-        if (p != null &&
-                p.hasMetadata("AlmPetInteracted") &&
+        if (p == null) {
+            return null;
+        }
+
+        // Ensure we're in the correct region to access metadata
+        if (!Bukkit.isOwnedByCurrentRegion(p)) {
+            return null;
+        }
+
+        if (p.hasMetadata("AlmPetInteracted") &&
                 !p.getMetadata("AlmPetInteracted").isEmpty() &&
                 p.getMetadata("AlmPetInteracted").getFirst() != null &&
                 p.getMetadata("AlmPetInteracted").getFirst().value() != null) {
@@ -411,8 +428,16 @@ public class Pet {
      * Get the pet from the last one that the player interacted with
      */
     public static Pet getFromLastOpInteractedWith(final Player p) {
-        if (p != null && p.hasPermission(PPermission.ADMIN.getPermission()) &&
-                p.hasMetadata("AlmPetOp") &&
+        if (p == null || !p.hasPermission(PPermission.ADMIN.getPermission())) {
+            return null;
+        }
+
+        // Ensure we're in the correct region to access metadata
+        if (!Bukkit.isOwnedByCurrentRegion(p)) {
+            return null;
+        }
+
+        if (p.hasMetadata("AlmPetOp") &&
                 !p.getMetadata("AlmPetOp").isEmpty() &&
                 p.getMetadata("AlmPetOp").getFirst() != null &&
                 p.getMetadata("AlmPetOp").getFirst().value() != null) {
@@ -425,15 +450,28 @@ public class Pet {
      * Associate the said player to the pet as last interacted with
      */
     public void setLastInteractedWith(final Player p) {
-        p.setMetadata("AlmPetInteracted", new FixedMetadataValue(MCPets.getInstance(), this));
+        if (p == null) {
+            return;
+        }
+
+        // Schedule metadata operation on player's region if needed
+        EntityAccessHelper.withPlayer(p.getUniqueId(), player ->
+            player.setMetadata("AlmPetInteracted", new FixedMetadataValue(MCPets.getInstance(), this))
+        );
     }
 
     /**
      * Associate the said op player to the pet as last interacted with
      */
     public void setLastOpInteracted(final Player p) {
-        if (p.hasPermission(PPermission.ADMIN.getPermission()))
-            p.setMetadata("AlmPetOp", new FixedMetadataValue(MCPets.getInstance(), this));
+        if (p == null || !p.hasPermission(PPermission.ADMIN.getPermission())) {
+            return;
+        }
+
+        // Schedule metadata operation on player's region if needed
+        EntityAccessHelper.withPlayer(p.getUniqueId(), player ->
+            player.setMetadata("AlmPetOp", new FixedMetadataValue(MCPets.getInstance(), this))
+        );
     }
 
     /**
@@ -1296,12 +1334,12 @@ public class Pet {
      * Say whether or not the entity is still present
      */
     public boolean isStillHere() {
-        return activeMob != null &&
-                activeMob.getEntity() != null &&
-                activeMob.getEntity().getBukkitEntity() != null &&
-                //!activeMob.getEntity().getBukkitEntity().isDead() &&     THIS ONE APPARENTLY DOESN'T WORK AS INTENDED
-                !activeMob.isDead() &&
-                !removed;
+        if (activeMob == null || activeMob.getEntity() == null || activeMob.isDead() || removed) {
+            return false;
+        }
+
+        // Check if the entity is accessible in the current region
+        return EntityAccessHelper.isEntityAccessible(activeMob.getEntity().getUniqueId());
     }
 
     /**

@@ -14,6 +14,7 @@ import org.bukkit.entity.Player;
 import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.data.Pet;
 import fr.nocsy.mcpets.utils.Utils;
+import fr.nocsy.mcpets.utils.EntityAccessHelper;
 import fr.nocsy.mcpets.utils.PetTimer;
 import fr.nocsy.mcpets.data.sql.Databases;
 import fr.nocsy.mcpets.data.sql.PlayerData;
@@ -21,11 +22,12 @@ import fr.nocsy.mcpets.utils.debug.Debugger;
 import fr.nocsy.mcpets.data.config.GlobalConfig;
 import fr.nocsy.mcpets.events.PetGainExperienceEvent;
 import fr.nocsy.mcpets.data.serializer.PetStatsSerializer;
+import org.bukkit.entity.LivingEntity;
 
 public class PetStats {
 
     //------------ Object code -------------//
-    
+
     @Getter
     @Setter
     // Reference to the actual pet
@@ -82,7 +84,13 @@ public class PetStats {
      */
     public void updateHealth() {
         if (!pet.isStillHere()) return;
-        currentHealth = pet.getActiveMob().getEntity().getHealth();
+
+        // Use EntityAccessHelper to safely access entity health
+        EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+            if (entity instanceof LivingEntity livingEntity) {
+                currentHealth = livingEntity.getHealth();
+            }
+        });
     }
 
     /**
@@ -140,7 +148,12 @@ public class PetStats {
         regenerationTimer.launch(() -> {
             if (pet.isStillHere()) {
                 double value = Math.min(currentHealth + currentLevel.getRegeneration(), currentLevel.getMaxHealth());
-                pet.getActiveMob().getEntity().setHealth(value);
+                // Use EntityAccessHelper to safely modify entity health
+                EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+                    if (entity instanceof LivingEntity livingEntity) {
+                        livingEntity.setHealth(value);
+                    }
+                });
                 updateHealth();
             } else {
                 regenerationTimer.stop(null);
@@ -195,18 +208,30 @@ public class PetStats {
      */
     public void refreshMaxHealth() {
         if (!pet.isStillHere()) return;
-        pet.getActiveMob().getEntity().setMaxHealth(currentLevel.getMaxHealth());
+
+        // Use EntityAccessHelper to safely modify entity max health
+        EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+            if (entity instanceof LivingEntity livingEntity) {
+                livingEntity.setMaxHealth(currentLevel.getMaxHealth());
+            }
+        });
     }
 
     /**
      * Set health to a given value
      */
     public void setHealth(double value) {
-        value = Math.min(value, currentLevel.getMaxHealth());
+        final double finalValue = Math.min(value, currentLevel.getMaxHealth());
 
         if (!pet.isStillHere()) return;
-        pet.getActiveMob().getEntity().setHealth(value);
-        currentHealth = value;
+
+        // Use EntityAccessHelper to safely modify entity health
+        EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+            if (entity instanceof LivingEntity livingEntity) {
+                livingEntity.setHealth(finalValue);
+            }
+        });
+        currentHealth = finalValue;
     }
 
     /**
