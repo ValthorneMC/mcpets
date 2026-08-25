@@ -5,6 +5,9 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   build:
 
@@ -31,7 +34,7 @@ jobs:
           release_name: Release ${{ github.ref_name }}
           body: "Artefactos generados automáticamente"
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
 
       - name: Subir todos los .jar generados
         run: |
@@ -40,4 +43,4 @@ jobs:
             gh release upload "${{ github.ref_name }}" "$file" --repo "${{ github.repository }}" --clobber
           done
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
