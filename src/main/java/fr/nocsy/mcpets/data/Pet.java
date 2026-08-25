@@ -1032,7 +1032,7 @@ public class Pet {
         }
 
         task = MCPets.getInstance().getSchedulerAdapter().runAtEntityFixedRate(
-                activeMob.getEntity().getBukkitEntity(), this::scheduleAiDecision, 0L, 10L);
+                activeMob.getEntity().getBukkitEntity(), this::scheduleAiDecision, 1L, 10L);
     }
 
     private void scheduleAiDecision() {

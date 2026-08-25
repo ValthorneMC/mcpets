@@ -57,14 +57,14 @@ public class PetTimer {
 
         if (pet.getActiveMob() != null && pet.getActiveMob().getEntity().getBukkitEntity() != null) {
             task = MCPets.getInstance().getSchedulerAdapter().runAtEntityFixedRate(
-                    pet.getActiveMob().getEntity().getBukkitEntity(), timerTask, 0L, frequency);
+                    pet.getActiveMob().getEntity().getBukkitEntity(), timerTask, 1L, frequency);
         } else {
             final Player owner = pet.getOwner() == null ? null : Bukkit.getPlayer(pet.getOwner());
             if (owner != null) {
                 task = MCPets.getInstance().getSchedulerAdapter().runAtEntityFixedRate(
-                        owner, timerTask, 0L, frequency);
+                        owner, timerTask, 1L, frequency);
             } else {
-                task = MCPets.getInstance().getSchedulerAdapter().runGlobalAtFixedRate(timerTask, 0L, frequency);
+                task = MCPets.getInstance().getSchedulerAdapter().runGlobalAtFixedRate(timerTask, 1L, frequency);
             }
         }
         runningTimers.put(this, task);
