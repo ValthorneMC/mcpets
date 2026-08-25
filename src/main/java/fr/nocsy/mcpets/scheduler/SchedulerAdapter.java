@@ -179,7 +179,12 @@ public final class SchedulerAdapter {
     }
 
     private static boolean detectFoliaServer() {
-        return "Folia".equalsIgnoreCase(Bukkit.getName());
+        try {
+            Class.forName("io.papermc.paper.threadedregions.scheduler.GlobalRegionScheduler");
+            return true;
+        } catch (ClassNotFoundException e) {
+            return false;
+        }
     }
 
     @NotNull
