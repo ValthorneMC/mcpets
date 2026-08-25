@@ -12,8 +12,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import net.kyori.adventure.text.Component;
 
-import dev.lone.itemsadder.api.CustomStack;
-
 import com.nexomc.nexo.api.NexoItems;
 import com.nexomc.nexo.items.ItemBuilder;
 
@@ -240,24 +238,6 @@ public class PetConfig extends AbstractConfig {
                     item, showStats, localName,
                     name, description, mat, data, textureBase, itemModel, tooltipStyle
             );
-            // ItemsAdder compat
-            if (MCPets.isItemsAdderLoaded() && !itemsAdder.isEmpty()) {
-                final CustomStack customStack = CustomStack.getInstance(itemsAdder);
-                if (customStack != null) {
-                    final ItemStack iaItem = customStack.getItemStack();
-                    itemStack = pet.buildItem(
-                            iaItem,
-                            showStats,
-                            localName,
-                            name,
-                            description,
-                            iaItem.getType().toString(),
-                            iaItem.getItemMeta().getCustomModelData(),
-                            textureBase,
-                            null, null
-                    );
-                }
-            }
 
             // Nexo integration — keep the original Nexo ItemStack to preserve item_model and all components
             if (MCPets.checkNexo()) {
