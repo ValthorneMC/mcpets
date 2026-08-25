@@ -41,7 +41,7 @@ public class MountWallClipListener implements Listener {
                     return;
 
                 pet.scheduleDismount(player, () -> {
-                    player.teleport(safeLoc);
+                    MCPets.getInstance().getSchedulerAdapter().teleportEntity(player, safeLoc);
                     Language.NOT_MOUNTABLE_HERE.sendMessage(player);
                 });
         }, 2L);

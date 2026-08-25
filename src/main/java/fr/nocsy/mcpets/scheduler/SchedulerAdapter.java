@@ -166,6 +166,18 @@ public final class SchedulerAdapter {
         return foliaServer;
     }
 
+    /**
+     * Teleport an entity to a location in a thread-safe way.
+     * Uses teleportAsync() which works correctly in both Paper and Folia.
+     * In Folia, this is required when teleporting across regions.
+     *
+     * @param entity The entity to teleport
+     * @param location The destination location
+     */
+    public void teleportEntity(@NotNull final Entity entity, @NotNull final Location location) {
+        entity.teleportAsync(location);
+    }
+
     private static boolean detectFoliaServer() {
         return "Folia".equalsIgnoreCase(Bukkit.getName());
     }
