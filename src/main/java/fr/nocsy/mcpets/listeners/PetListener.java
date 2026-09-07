@@ -15,7 +15,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.inventory.ItemStack;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.event.entity.EntityTameEvent;
 import org.bukkit.event.entity.EntityDamageEvent;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
@@ -158,7 +157,6 @@ public class PetListener implements Listener {
         for (Pet pet : new ArrayList<>(pets)) {
             // Capture skin data before despawn clears it
             PetSkin activeSkin = pet.getActiveSkin();
-            pet.despawn(PetDespawnReason.DISCONNECTION);
             if (p.hasPermission(pet.getPermission())) {
                 String encoded = PlayerData.encodeActivePet(pet.getId(),
                         activeSkin != null ? activeSkin.getPathId() : null);
@@ -175,6 +173,7 @@ public class PetListener implements Listener {
                     }
                 }
             }
+            pet.scheduleDespawn(PetDespawnReason.DISCONNECTION);
         }
         // Velocity: persist or clear active pet record so destination server restores correctly
         if (GlobalConfig.getInstance().isVelocityEnabled()
@@ -182,10 +181,10 @@ public class PetListener implements Listener {
             if (!activePetIds.isEmpty()) {
                 final List<String> petIdsToSave = new ArrayList<>(activePetIds);
                 final Map<String, String> skinIdsToSave = new HashMap<>(activeSkinIds);
-                Bukkit.getScheduler().runTaskAsynchronously(MCPets.getInstance(),
+                MCPets.getInstance().getSchedulerAdapter().runAsync(
                         () -> Databases.saveActivePet(uuid, petIdsToSave, skinIdsToSave));
             } else {
-                Bukkit.getScheduler().runTaskAsynchronously(MCPets.getInstance(),
+                MCPets.getInstance().getSchedulerAdapter().runAsync(
                         () -> Databases.clearActivePet(uuid));
             }
         }
@@ -207,7 +206,7 @@ public class PetListener implements Listener {
         Player p = e.getPlayer();
         UUID uuid = p.getUniqueId();
 
-        Bukkit.getScheduler().runTaskLater(MCPets.getInstance(), () -> {
+        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(p, () -> {
             if (GlobalConfig.getInstance().isDatabaseSupport()) {
                 PlayerData.reloadAll(uuid);
             }
@@ -221,14 +220,13 @@ public class PetListener implements Listener {
                 reconnectionPets.remove(uuid); // discard — DB owns the state
 
                 // Load from DB asynchronously to avoid blocking the main thread
-                Bukkit.getScheduler().runTaskAsynchronously(MCPets.getInstance(), () -> {
+                MCPets.getInstance().getSchedulerAdapter().runAsync(() -> {
                     Databases.ActivePetRecord record = Databases.loadActivePet(uuid);
                     if (record == null) return;
                     if (isLiveSwitch) {
                         Databases.clearActivePet(uuid);
                     }
-                    // Return to main thread to spawn pets (skin restoration uses static maps)
-                    Bukkit.getScheduler().runTask(MCPets.getInstance(), () -> {
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntity(p, () -> {
                         if (!p.isOnline()) return;
                         for (String petId : record.getPetIds()) {
                             Pet template = Pet.getFromId(petId);
@@ -297,13 +295,10 @@ public class PetListener implements Listener {
         Player p = e.getPlayer();
         for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(p.getUniqueId()))) {
             if (pet.getTamingProgress() < 1) continue;
-            pet.despawn(PetDespawnReason.TELEPORT);
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    pet.spawn(p, p.getLocation());
-                }
-            }.runTaskLater(MCPets.getInstance(), 20L);
+            pet.scheduleDespawn(PetDespawnReason.TELEPORT, () ->
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(p,
+                            () -> pet.spawn(p, p.getLocation()), 20L)
+            );
         }
     }
 
@@ -311,7 +306,7 @@ public class PetListener implements Listener {
     public void teleport(PlayerTeleportEvent e) {
         Player p = e.getPlayer();
         for (Pet pet : Pet.getActivePetsForOwner(p.getUniqueId())) {
-            pet.dismount(p);
+            pet.scheduleDismount(p);
         }
     }
 
@@ -330,7 +325,7 @@ public class PetListener implements Listener {
 
             Pet pet = Pet.fromOwner(p.getUniqueId());
             if (pet != null && pet.hasMount(p)) {
-                pet.dismount(p);
+                pet.scheduleDismount(p);
             }
         }
     }
@@ -352,7 +347,7 @@ public class PetListener implements Listener {
         UUID uuid = e.getPlayer().getUniqueId();
         if (e.getNewGameMode() != GameMode.SPECTATOR) return;
         for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(uuid))) {
-            pet.despawn(PetDespawnReason.GAMEMODE);
+            pet.scheduleDespawn(PetDespawnReason.GAMEMODE);
         }
     }
 
@@ -368,7 +363,7 @@ public class PetListener implements Listener {
         if (pet == null) return;
         if (pet.isRemoved()) return;
 
-        pet.despawn(PetDespawnReason.MYTHICMOBS);
+        pet.scheduleDespawn(PetDespawnReason.MYTHICMOBS);
 
         UUID ownerUUID = pet.getOwner();
         if (ownerUUID == null) return;
@@ -382,15 +377,12 @@ public class PetListener implements Listener {
         }
         int value = 1;
         if (repeatRespawn.containsKey(ownerUUID)) value = repeatRespawn.get(ownerUUID);
-        pet.spawn(owner, owner.getLocation());
+        MCPets.getInstance().getSchedulerAdapter().runAtEntity(owner,
+                () -> pet.spawn(owner, owner.getLocation()));
         pet.setRecurrent_spawn(false);
         repeatRespawn.put(owner.getUniqueId(), value + 1);
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                repeatRespawn.remove(owner.getUniqueId());
-            }
-        }.runTaskLater(MCPets.getInstance(), 10L);
+        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(owner,
+                () -> repeatRespawn.remove(owner.getUniqueId()), 10L);
     }
 
     /**
@@ -404,7 +396,7 @@ public class PetListener implements Listener {
         if (pet == null) return;
         if (pet.isRemoved()) return;
 
-        pet.despawn(PetDespawnReason.DEATH);
+        pet.scheduleDespawn(PetDespawnReason.DEATH);
 
         if (pet.getOwner() == null) return;
 
@@ -466,7 +458,7 @@ public class PetListener implements Listener {
             e.setCancelled(true);
             Debugger.send("[EntityMountPetEvent] §c" + player.getName() + " can not mount model of " + pet.getId() + " as a region is preventing mounting.");
             Language.NOT_MOUNTABLE_HERE.sendMessage(player);
-            if (pet.isDespawnOnDismount()) pet.despawn(PetDespawnReason.FLAG);
+            if (pet.isDespawnOnDismount()) pet.scheduleDespawn(PetDespawnReason.FLAG);
         }
     }
 

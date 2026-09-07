@@ -13,17 +13,18 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.metadata.FixedMetadataValue;
-import org.bukkit.scheduler.BukkitRunnable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 public class PetSkin {
 
-    private static final HashMap<String, ArrayList<PetSkin>> petSkins = new HashMap<>();
+    private static final ConcurrentHashMap<String, CopyOnWriteArrayList<PetSkin>> petSkins = new ConcurrentHashMap<>();
 
     @Getter
     private String uuid;
@@ -56,12 +57,7 @@ public class PetSkin {
         PetSkin petSkin = new PetSkin(pathId, objectPet, modelSkinId, permission);
         petSkin.setIcon(icon);
 
-        ArrayList<PetSkin> listSkins = petSkins.get(objectPet.getId());
-        if (listSkins == null)
-            listSkins = new ArrayList<>();
-
-        listSkins.add(petSkin);
-        petSkins.put(objectPet.getId(), listSkins);
+        petSkins.computeIfAbsent(objectPet.getId(), k -> new CopyOnWriteArrayList<>()).add(petSkin);
     }
 
     /**
@@ -75,7 +71,7 @@ public class PetSkin {
             if (code.length > 0 && code[0].equals("MCPetsSkins")) {
                 String petId = code[1];
                 String skinUuid = code[2];
-                ArrayList<PetSkin> skins = petSkins.get(petId);
+                List<PetSkin> skins = petSkins.get(petId);
                 if (skins != null) {
                     Optional<PetSkin> opt = skins.stream().filter(petSkin -> petSkin.getUuid().equals(skinUuid)).findFirst();
                     return opt.orElse(null);
@@ -88,9 +84,9 @@ public class PetSkin {
     /**
      * Fetch all skins from the pet
      */
-    public static ArrayList<PetSkin> getSkins(Pet pet) {
+    public static List<PetSkin> getSkins(Pet pet) {
         if (!petSkins.containsKey(pet.getId()))
-            return new ArrayList<>();
+            return new CopyOnWriteArrayList<>();
         return petSkins.get(pet.getId());
     }
 
@@ -144,7 +140,7 @@ public class PetSkin {
      */
     public static void clearList(Pet pet) {
         if (pet.hasSkins()) {
-            petSkins.put(pet.getId(), new ArrayList<>());
+            petSkins.put(pet.getId(), new CopyOnWriteArrayList<>());
         }
     }
 
@@ -200,25 +196,23 @@ public class PetSkin {
 
         Location loc = instancePet.getActiveMob().getEntity().getBukkitEntity().getLocation();
 
-        boolean hasRider = instancePet.hasMount(Bukkit.getPlayer(instancePet.getOwner()));
+        final Player rider = Bukkit.getPlayer(instancePet.getOwner());
+        boolean hasRider = rider != null && instancePet.hasMount(rider);
         instancePet.setActiveSkin(this);
 
-        instancePet.despawn(PetDespawnReason.SKIN);
-
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                instancePet.spawn(loc, false);
-                if (hasRider) {
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            instancePet.setMount(Bukkit.getPlayer(instancePet.getOwner()));
-                        }
-                    }.runTaskLater(MCPets.getInstance(), 2L);
-                }
-            }
-        }.runTaskLater(MCPets.getInstance(), 2L);
+        instancePet.scheduleDespawn(PetDespawnReason.SKIN, () ->
+                MCPets.getInstance().getSchedulerAdapter().runAtLocationDelayed(loc, () -> {
+                    instancePet.spawn(loc, false);
+                    if (hasRider && instancePet.getActiveMob() != null
+                            && instancePet.getActiveMob().getEntity().getBukkitEntity() != null) {
+                        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                                instancePet.getActiveMob().getEntity().getBukkitEntity(),
+                                () -> instancePet.scheduleMount(rider, null),
+                                2L
+                        );
+                    }
+                }, 2L)
+        );
         return true;
     }
 }

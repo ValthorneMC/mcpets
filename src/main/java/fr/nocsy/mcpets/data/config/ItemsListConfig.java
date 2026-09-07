@@ -2,7 +2,7 @@ package fr.nocsy.mcpets.data.config;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 import lombok.Getter;
 
@@ -12,23 +12,31 @@ import org.bukkit.inventory.ItemStack;
 
 public class ItemsListConfig extends AbstractConfig {
 
-    private static ItemsListConfig instance;
+    private static volatile ItemsListConfig instance;
 
     @Getter
     private Map<String, ItemStack> items;
 
     private ItemsListConfig() {
-        items = new HashMap<>();
+        items = new ConcurrentHashMap<>();
     }
 
     public static ItemsListConfig getInstance() {
-        if (instance == null) instance = new ItemsListConfig();
+        if (instance == null) {
+            synchronized (ItemsListConfig.class) {
+                if (instance == null) {
+                    instance = new ItemsListConfig();
+                }
+            }
+        }
         return instance;
     }
 
     public static void reloadInstance() {
-        instance = new ItemsListConfig();
-        instance.init();
+        synchronized (ItemsListConfig.class) {
+            instance = new ItemsListConfig();
+            instance.init();
+        }
     }
 
     public void init() {

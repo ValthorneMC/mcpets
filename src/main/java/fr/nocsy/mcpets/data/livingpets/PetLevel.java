@@ -258,11 +258,12 @@ public class PetLevel {
             permFuture = permFuture.thenCompose(v -> Utils.removePermissionAsync(player, pet.getPermission()));
         }
 
-        // Once permissions are applied, spawn the evolution on the main thread
-        permFuture.thenRun(() -> Bukkit.getScheduler().runTaskLater(MCPets.getInstance(), () -> {
-            // Make sure the owner is still here
+        // Once permissions are applied, spawn the evolution on the owner's region
+        permFuture.thenRun(() -> {
             final Player o = Bukkit.getPlayer(player);
-            if (o != null) {
+            if (o == null) return;
+
+            MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(o, () -> {
                 final Pet activePet = Pet.fromOwner(player);
                 final Location loc = activePet != null && activePet.isStillHere() ?
                                 activePet.getActiveMob().getEntity().getBukkitEntity().getLocation() :
@@ -270,15 +271,16 @@ public class PetLevel {
 
                 // Despawn the previous pet
                 if (activePet != null && activePet.isStillHere()) {
-                    activePet.despawn(PetDespawnReason.EVOLUTION);
+                    activePet.scheduleDespawn(PetDespawnReason.EVOLUTION, () -> {
+                        petEvolution.spawn(loc, false);
+                        petEvolution.setCheckPermission(true);
+                    });
+                } else {
+                    petEvolution.spawn(loc, false);
+                    petEvolution.setCheckPermission(true);
                 }
-
-                // Spawn the evolution
-                petEvolution.spawn(loc, false);
-                // Re-enable permission checking now that LuckPerms has propagated
-                petEvolution.setCheckPermission(true);
-            }
-        }, delayBeforeEvolution));
+            }, delayBeforeEvolution);
+        });
 
         return true;
     }

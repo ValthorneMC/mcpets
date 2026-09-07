@@ -1,15 +1,19 @@
 package fr.nocsy.mcpets.utils;
 
 import fr.nocsy.mcpets.MCPets;
+import fr.nocsy.mcpets.data.Pet;
 import lombok.Getter;
 import org.bukkit.Bukkit;
+import org.bukkit.entity.Player;
+import org.jetbrains.annotations.Nullable;
 
-import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
+import fr.nocsy.mcpets.scheduler.SchedulerTask;
 
 public class PetTimer {
 
     @Getter
-    private static HashMap<PetTimer, Integer> runningTimers = new HashMap<>();
+    private static final ConcurrentHashMap<PetTimer, SchedulerTask> runningTimers = new ConcurrentHashMap<>();
 
     @Getter
     private int cooldown;
@@ -17,7 +21,10 @@ public class PetTimer {
     private int remainingTime;
     private long frequency;
 
-    private int task;
+    @Nullable
+    private SchedulerTask task;
+
+    private final Pet pet;
 
     private final Runnable endingRunnable;
 
@@ -25,7 +32,8 @@ public class PetTimer {
      * Constructor
      * Frequency giving the tick when repeating the task
      */
-    public PetTimer(int cooldown, long frequency, Runnable endingRunnable) {
+    public PetTimer(final Pet pet, int cooldown, long frequency, Runnable endingRunnable) {
+        this.pet = pet;
         this.cooldown = cooldown;
         this.remainingTime = 0;
         this.frequency = frequency;
@@ -37,7 +45,7 @@ public class PetTimer {
         if (isRunning())
             stop(null);
         remainingTime = cooldown;
-        task = Bukkit.getScheduler().scheduleSyncRepeatingTask(MCPets.getInstance(), () -> {
+        final Runnable timerTask = () -> {
             if (cooldown != Integer.MAX_VALUE)
                 remainingTime--;
             if (remainingTime <= 0)
@@ -45,12 +53,28 @@ public class PetTimer {
 
             if (runnable != null)
                 runnable.run();
-        }, 0L, frequency);
+        };
+
+        if (pet.getActiveMob() != null && pet.getActiveMob().getEntity().getBukkitEntity() != null) {
+            task = MCPets.getInstance().getSchedulerAdapter().runAtEntityFixedRate(
+                    pet.getActiveMob().getEntity().getBukkitEntity(), timerTask, 1L, frequency);
+        } else {
+            final Player owner = pet.getOwner() == null ? null : Bukkit.getPlayer(pet.getOwner());
+            if (owner != null) {
+                task = MCPets.getInstance().getSchedulerAdapter().runAtEntityFixedRate(
+                        owner, timerTask, 1L, frequency);
+            } else {
+                task = MCPets.getInstance().getSchedulerAdapter().runGlobalAtFixedRate(timerTask, 1L, frequency);
+            }
+        }
         runningTimers.put(this, task);
     }
 
     public void stop(Runnable runnable) {
-        Bukkit.getScheduler().cancelTask(task);
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
         runningTimers.remove(this);
         remainingTime = 0;
         if (runnable != null)
@@ -59,5 +83,17 @@ public class PetTimer {
 
     public boolean isRunning() {
         return remainingTime > 0;
+    }
+
+    /**
+     * Cancel all running timers
+     */
+    public static void cancelAllTimers() {
+        for (SchedulerTask task : runningTimers.values()) {
+            if (task != null) {
+                task.cancel();
+            }
+        }
+        runningTimers.clear();
     }
 }

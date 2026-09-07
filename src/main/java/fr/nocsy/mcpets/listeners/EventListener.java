@@ -45,4 +45,14 @@ public class EventListener implements Listener {
         }
     }
 
+    /**
+     * Unregister all listeners
+     */
+    public static void unregisterAll() {
+        for (Listener l : listeners) {
+            org.bukkit.event.HandlerList.unregisterAll(l);
+        }
+        listeners.clear();
+    }
+
 }

@@ -6,21 +6,27 @@ import fr.nocsy.mcpets.utils.PetMath;
 import lombok.Getter;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class PetFoodConfig extends AbstractConfig {
 
-    private static PetFoodConfig instance;
+    private static volatile PetFoodConfig instance;
 
     @Getter
-    private HashMap<String, PetFood> petFoods;
+    private Map<String, PetFood> petFoods;
 
     private PetFoodConfig() {
-        petFoods = new HashMap<>();
+        petFoods = new ConcurrentHashMap<>();
     }
 
     public static PetFoodConfig getInstance() {
-        if (instance == null)
-            instance = new PetFoodConfig();
+        if (instance == null) {
+            synchronized (PetFoodConfig.class) {
+                if (instance == null) {
+                    instance = new PetFoodConfig();
+                }
+            }
+        }
         return instance;
     }
 
@@ -40,7 +46,7 @@ public class PetFoodConfig extends AbstractConfig {
     public void reload() {
 
         loadConfig();
-        petFoods = new HashMap<>();
+        petFoods = new ConcurrentHashMap<>();
 
         for (String key : getConfig().getKeys(false)) {
             String id = Optional.ofNullable(getConfig().getString(key + ".ItemId")).orElse("None set");

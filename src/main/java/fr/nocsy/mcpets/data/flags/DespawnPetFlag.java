@@ -1,19 +1,19 @@
 package fr.nocsy.mcpets.data.flags;
 
 import java.util.UUID;
-import java.util.ArrayList;
 
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 
 import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.data.Pet;
 import fr.nocsy.mcpets.data.config.Language;
 import fr.nocsy.mcpets.data.PetDespawnReason;
+import fr.nocsy.mcpets.scheduler.SchedulerTask;
+import fr.nocsy.mcpets.utils.EntityAccessHelper;
 
 public class DespawnPetFlag extends AbstractFlag implements StoppableFlag {
 
-    int task;
+    SchedulerTask task;
 
     public static String NAME = "mcpets-despawn";
 
@@ -35,28 +35,29 @@ public class DespawnPetFlag extends AbstractFlag implements StoppableFlag {
 
         MCPets.getLog().info("Starting flag " + getFlagName() + ".");
 
-        task = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(getMCPetsInstance(), () -> {
+        task = MCPets.getInstance().getSchedulerAdapter().runGlobalAtFixedRate(() -> {
             if (MCPets.getMythicMobs() == null) return;
 
-            Player pl;
-            for (UUID owner : new ArrayList<>(Pet.getActivePets().keySet())) {
-                pl = Bukkit.getPlayer(owner);
-                if (pl == null) continue;
+            for (UUID owner : Pet.getActivePets().keySet()) {
+                EntityAccessHelper.withPlayer(owner, pl -> {
+                    if (!testState(pl.getLocation())) return;
 
-                if (!testState(pl.getLocation())) continue;
+                    for (Pet pet : Pet.getActivePetsForOwner(owner)) {
+                        pet.scheduleDespawn(PetDespawnReason.TELEPORT);
+                    }
 
-                for (Pet pet : new ArrayList<>(Pet.getActivePetsForOwner(owner))) {
-                    pet.despawn(PetDespawnReason.TELEPORT);
-                }
-
-                Language.CANT_FOLLOW_HERE.sendMessage(pl);
+                    Language.CANT_FOLLOW_HERE.sendMessage(pl);
+                });
             }
         }, 0L, 20L);
     }
 
     @Override
     public void stop() {
-        Bukkit.getServer().getScheduler().cancelTask(task);
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
     }
 
 }

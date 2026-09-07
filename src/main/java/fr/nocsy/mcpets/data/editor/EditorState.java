@@ -274,7 +274,7 @@ public enum EditorState {
             final Pet pet = PetConfig.loadConfigPet(editorPet.getPetId());
             final String filePath = PetConfig.getFilePath(pet.getId());
 
-            final ArrayList<PetSkin> skins = PetSkin.getSkins(pet);
+            final List<PetSkin> skins = PetSkin.getSkins(pet);
             for(int i = 0; i < 45 && i < skins.size(); i++) {
                 final PetSkin skin = skins.get(i);
 
@@ -427,7 +427,7 @@ public enum EditorState {
             final EditorEditing editing = EditorEditing.get(p);
             editing.getEditorMapping().clear();
 
-            final HashMap<String, PetFood> items = PetFoodConfig.getInstance().getPetFoods();
+            final Map<String, PetFood> items = PetFoodConfig.getInstance().getPetFoods();
             final List<String> itemsId = new ArrayList<>(items.keySet());
             final int page = EditorPageSelection.get(p);
             for (int i = 45*page; i - 45*page < 45 && i - 45*page < items.size(); i++) {

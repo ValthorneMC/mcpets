@@ -15,7 +15,6 @@ import kr.toxicity.model.api.bukkit.platform.BukkitEntity;
 import kr.toxicity.model.api.event.DismountModelEvent;
 import kr.toxicity.model.api.event.ModelEventListener;
 import kr.toxicity.model.api.event.MountModelEvent;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 
 public class BetterModelListeners {
@@ -91,7 +90,7 @@ public class BetterModelListeners {
                     + " as a region is preventing mounting.");
             Language.NOT_MOUNTABLE_HERE.sendMessage(playerEntity);
             if (pet.isDespawnOnDismount())
-                pet.despawn(PetDespawnReason.FLAG);
+                pet.scheduleDespawn(PetDespawnReason.FLAG);
             return;
         }
 
@@ -116,7 +115,7 @@ public class BetterModelListeners {
             return;
         }
 
-        Bukkit.getScheduler().runTask(MCPets.getInstance(), () -> {
+        MCPets.getInstance().getSchedulerAdapter().runAtEntity(mountEntity, () -> {
             Pet pet = Pet.getFromEntity(mountEntity);
             if (pet != null && pet.isDespawnOnDismount()) {
                 pet.despawn(PetDespawnReason.DISMOUNT);

@@ -4,6 +4,7 @@ import fr.nocsy.mcpets.data.Pet;
 import fr.nocsy.mcpets.modeler.bone.AbstractNameTag;
 import fr.nocsy.mcpets.modeler.bone.BetterModelNameTag;
 import fr.nocsy.mcpets.modeler.listeners.BetterModelListeners;
+import fr.nocsy.mcpets.utils.EntityAccessHelper;
 import fr.nocsy.mcpets.utils.debug.Debugger;
 import kr.toxicity.model.api.BetterModel;
 import kr.toxicity.model.api.bone.RenderedBone;
@@ -60,7 +61,7 @@ public class BetterModelModeler implements AbstractModeler {
         }
 
         // Fallback to vanilla passengers if no HitBox is available
-        Entity petEntity = Bukkit.getEntity(petUUID);
+        Entity petEntity = EntityAccessHelper.getEntitySafe(petUUID);
         if (petEntity == null)
             return false;
         petEntity.addPassenger(rider);
@@ -76,7 +77,7 @@ public class BetterModelModeler implements AbstractModeler {
             return registry.mountedHitBox().containsKey(rider.getUniqueId());
         }
         // Fallback to vanilla check
-        Entity petEntity = Bukkit.getEntity(petUUID);
+        Entity petEntity = EntityAccessHelper.getEntitySafe(petUUID);
         if (petEntity == null)
             return false;
         return petEntity.getPassengers().contains(rider);
@@ -95,7 +96,7 @@ public class BetterModelModeler implements AbstractModeler {
             }
         }
         // Fallback to vanilla
-        Entity petEntity = Bukkit.getEntity(petUUID);
+        Entity petEntity = EntityAccessHelper.getEntitySafe(petUUID);
         if (petEntity == null)
             return;
         petEntity.removePassenger(rider);
@@ -112,7 +113,7 @@ public class BetterModelModeler implements AbstractModeler {
             return;
         }
         // Fallback to vanilla
-        Entity petEntity = Bukkit.getEntity(petUUID);
+        Entity petEntity = EntityAccessHelper.getEntitySafe(petUUID);
         if (petEntity == null)
             return;
         petEntity.eject();

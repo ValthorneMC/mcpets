@@ -9,7 +9,7 @@
 
     <groupId>fr.nocsy</groupId>
     <artifactId>mcpets</artifactId>
-    <version>4.2.0</version>
+    <version>4.3.1</version>
 
     <licenses>
         <license>
@@ -37,6 +37,32 @@
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.5.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <createDependencyReducedPom>false</createDependencyReducedPom>
+                            <filters>
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                    </excludes>
+                                </filter>
+                            </filters>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
         <resources>
@@ -114,14 +140,12 @@
             <artifactId>gson</artifactId>
             <version>2.13.2</version>
         </dependency>
+        <dependency>
+            <groupId>com.zaxxer</groupId>
+            <artifactId>HikariCP</artifactId>
+            <version>5.1.0</version>
+        </dependency>
 
-        <!-- Minecraft dependencies -->
-        <!--<dependency>
-            <groupId>org.spigotmc</groupId>
-            <artifactId>spigot-api</artifactId>
-            <version>1.21-R0.1-SNAPSHOT</version>
-            <scope>provided</scope>
-        </dependency>-->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -167,15 +191,9 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>dev.lone</groupId>
-            <artifactId>api-itemsadder</artifactId>
-            <version>4.0.10</version>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.nexomc</groupId>
             <artifactId>nexo</artifactId>
-            <version>1.21.0</version>
+            <version>1.27.0</version>
             <scope>provided</scope>
             <exclusions>
                 <exclusion>

@@ -3,6 +3,7 @@ package fr.nocsy.mcpets.data.livingpets;
 import java.util.List;
 import java.util.UUID;
 import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
 
 import lombok.Getter;
@@ -14,6 +15,7 @@ import org.bukkit.entity.Player;
 import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.data.Pet;
 import fr.nocsy.mcpets.utils.Utils;
+import fr.nocsy.mcpets.utils.EntityAccessHelper;
 import fr.nocsy.mcpets.utils.PetTimer;
 import fr.nocsy.mcpets.data.sql.Databases;
 import fr.nocsy.mcpets.data.sql.PlayerData;
@@ -21,11 +23,12 @@ import fr.nocsy.mcpets.utils.debug.Debugger;
 import fr.nocsy.mcpets.data.config.GlobalConfig;
 import fr.nocsy.mcpets.events.PetGainExperienceEvent;
 import fr.nocsy.mcpets.data.serializer.PetStatsSerializer;
+import org.bukkit.entity.LivingEntity;
 
 public class PetStats {
 
     //------------ Object code -------------//
-    
+
     @Getter
     @Setter
     // Reference to the actual pet
@@ -82,7 +85,13 @@ public class PetStats {
      */
     public void updateHealth() {
         if (!pet.isStillHere()) return;
-        currentHealth = pet.getActiveMob().getEntity().getHealth();
+
+        // Use EntityAccessHelper to safely access entity health
+        EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+            if (entity instanceof LivingEntity livingEntity) {
+                currentHealth = livingEntity.getHealth();
+            }
+        });
     }
 
     /**
@@ -91,7 +100,7 @@ public class PetStats {
     private void updateChangingData() {
         refreshMaxHealth();
         updateHealth();
-        respawnTimer = new PetTimer(currentLevel.getRespawnCooldown(), 20, () -> {
+        respawnTimer = new PetTimer(pet, currentLevel.getRespawnCooldown(), 20, () -> {
             // If it's an initialization run, we don't want the respawn to happen
             if (initializingRun) {
                 initializingRun = false;
@@ -101,14 +110,17 @@ public class PetStats {
             if (GlobalConfig.getInstance().isAutoRespawn()) {
                 Player p = Bukkit.getPlayer(pet.getOwner());
                 if (p != null && Pet.getActivePets().get(pet.getOwner()) == null) {
-                    pet.spawn(p.getLocation(), true);
-                    Debugger.send("§aPet §6" + pet.getId() + "§a was autorespawned after death.");
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntity(p,
+                            () -> {
+                                pet.spawn(p.getLocation(), true);
+                                Debugger.send("§aPet §6" + pet.getId() + "§a was autorespawned after death.");
+                            });
                 } else {
                     Debugger.send("§cPet §6" + pet.getId() + "§c was supposed to autorespawn, but the player already has a spawned pet with him, or is disconnected.");
                 }
             }
         });
-        revokeTimer = new PetTimer(currentLevel.getRevokeCooldown(), 20, null);
+        revokeTimer = new PetTimer(pet, currentLevel.getRevokeCooldown(), 20, null);
     }
 
     /**
@@ -133,11 +145,16 @@ public class PetStats {
             return;
         }
 
-        regenerationTimer = new PetTimer(Integer.MAX_VALUE, 20, null);
+        regenerationTimer = new PetTimer(pet, Integer.MAX_VALUE, 20, null);
         regenerationTimer.launch(() -> {
             if (pet.isStillHere()) {
                 double value = Math.min(currentHealth + currentLevel.getRegeneration(), currentLevel.getMaxHealth());
-                pet.getActiveMob().getEntity().setHealth(value);
+                // Use EntityAccessHelper to safely modify entity health
+                EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+                    if (entity instanceof LivingEntity livingEntity) {
+                        livingEntity.setHealth(value);
+                    }
+                });
                 updateHealth();
             } else {
                 regenerationTimer.stop(null);
@@ -192,18 +209,30 @@ public class PetStats {
      */
     public void refreshMaxHealth() {
         if (!pet.isStillHere()) return;
-        pet.getActiveMob().getEntity().setMaxHealth(currentLevel.getMaxHealth());
+
+        // Use EntityAccessHelper to safely modify entity max health
+        EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+            if (entity instanceof LivingEntity livingEntity) {
+                livingEntity.setMaxHealth(currentLevel.getMaxHealth());
+            }
+        });
     }
 
     /**
      * Set health to a given value
      */
     public void setHealth(double value) {
-        value = Math.min(value, currentLevel.getMaxHealth());
+        final double finalValue = Math.min(value, currentLevel.getMaxHealth());
 
         if (!pet.isStillHere()) return;
-        pet.getActiveMob().getEntity().setHealth(value);
-        currentHealth = value;
+
+        // Use EntityAccessHelper to safely modify entity health
+        EntityAccessHelper.withEntity(pet.getActiveMob().getEntity().getUniqueId(), entity -> {
+            if (entity instanceof LivingEntity livingEntity) {
+                livingEntity.setHealth(finalValue);
+            }
+        });
+        currentHealth = finalValue;
     }
 
     /**
@@ -384,7 +413,7 @@ public class PetStats {
 
     //------------ Static code -------------//
 
-    private static List<PetStats> petStatsList = new ArrayList<>();
+    private static final List<PetStats> petStatsList = new CopyOnWriteArrayList<>();
 
     public static List<PetStats> getPetStats(UUID owner) {
         return petStatsList.stream()
@@ -441,15 +470,15 @@ public class PetStats {
         // Runs Async if it's a SQL, sync if not coz YAML doesn't support Async
         if (GlobalConfig.getInstance().isDatabaseSupport()) {
             // TODO: For now, we make the AutoSave only saving the connected players for MySQL users
-            Bukkit.getScheduler().runTaskTimerAsynchronously(MCPets.getInstance(), () -> {
+            MCPets.getInstance().getSchedulerAdapter().runAsyncAtFixedRate(() -> {
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     Databases.savePlayerData(p.getUniqueId());
                 }
-            }, delay, delay);
+            }, delay, delay, java.util.concurrent.TimeUnit.MILLISECONDS);
             return;
         }
 
-        Bukkit.getScheduler().runTaskTimer(MCPets.getInstance(), () ->
+        MCPets.getInstance().getSchedulerAdapter().runGlobalAtFixedRate(() ->
                 new ArrayList<>(petStatsList).forEach(PetStats::save), delay, delay);
     }
 
@@ -474,14 +503,17 @@ public class PetStats {
             return false;
         }
 
-        // If the pet stats is already registered, then we overwrite the previous one
-        if (get(petStats.getPet().getId(), petStats.getPet().getOwner()) != null) {
-            petStatsList.remove(get(petStats.getPet().getId(), petStats.getPet().getOwner()));
-        }
+        synchronized (petStatsList) {
+            // If the pet stats is already registered, then we overwrite the previous one
+            PetStats existing = get(petStats.getPet().getId(), petStats.getPet().getOwner());
+            if (existing != null) {
+                petStatsList.remove(existing);
+            }
 
-        // We register the pet stats if we found no matches for the same pet
-        // and the same owner in the current registration
-        petStatsList.add(petStats);
+            // We register the pet stats if we found no matches for the same pet
+            // and the same owner in the current registration
+            petStatsList.add(petStats);
+        }
         return true;
     }
 
@@ -493,6 +525,23 @@ public class PetStats {
         return petStatsList.stream().filter(petStats ->
                 petStats.getPet().getOwner().equals(uuid)
                         && petStats.isRespawnTimerRunning()).findFirst().orElse(null);
+    }
+
+    /**
+     * Cancel all timers for all pet stats
+     */
+    public static void cancelAllTimers() {
+        for (PetStats stats : petStatsList) {
+            if (stats.regenerationTimer != null) {
+                stats.regenerationTimer.stop(null);
+            }
+            if (stats.respawnTimer != null) {
+                stats.respawnTimer.stop(null);
+            }
+            if (stats.revokeTimer != null) {
+                stats.revokeTimer.stop(null);
+            }
+        }
     }
 
     /**

@@ -1,7 +1,10 @@
 package fr.nocsy.mcpets.data;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.logging.Level;
+import java.util.function.Consumer;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -9,6 +12,7 @@ import lombok.Setter;
 import net.kyori.adventure.text.Component;
 
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -18,7 +22,6 @@ import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.event.entity.EntityMountEvent;
 
@@ -32,6 +35,7 @@ import io.lumine.mythic.api.exceptions.InvalidMobTypeException;
 
 import fr.nocsy.mcpets.MCPets;
 import fr.nocsy.mcpets.utils.Utils;
+import fr.nocsy.mcpets.utils.EntityAccessHelper;
 import fr.nocsy.mcpets.PPermission;
 import fr.nocsy.mcpets.utils.PDCTag;
 import fr.nocsy.mcpets.data.sql.Databases;
@@ -50,6 +54,7 @@ import fr.nocsy.mcpets.data.livingpets.PetStats;
 import fr.nocsy.mcpets.events.PetCastSkillEvent;
 import fr.nocsy.mcpets.events.EntityMountPetEvent;
 import fr.nocsy.mcpets.modeler.bone.AbstractNameTag;
+import fr.nocsy.mcpets.scheduler.SchedulerTask;
 
 public class Pet {
 
@@ -70,14 +75,14 @@ public class Pet {
     //********** Static values **********
 
     @Getter
-    private static Map<UUID, List<Pet>> activePets = new HashMap<>();
+    private static final Map<UUID, List<Pet>> activePets = new ConcurrentHashMap<>();
     @Getter
-    private static List<Pet> objectPets = new ArrayList<>();
+    private static final List<Pet> objectPets = new CopyOnWriteArrayList<>();
     @Getter
-    private static Map<UUID, HashMap<String, PetSkin>> activeSkinsMap = new HashMap<>();
+    private static final Map<UUID, Map<String, PetSkin>> activeSkinsMap = new ConcurrentHashMap<>();
 
     // Prevent race conditions during spawn
-    private static Set<String> spawningPets = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static final Set<String> spawningPets = ConcurrentHashMap.newKeySet();
 
     //********** Global Pet **********
 
@@ -221,7 +226,9 @@ public class Pet {
     private boolean recurrent_spawn = false;
 
     // AI variable
-    private int task = 0;
+    private SchedulerTask task;
+
+    private int teleportTick;
     private boolean taskRunning = false;
 
     /**
@@ -240,12 +247,8 @@ public class Pet {
      */
     public void setActiveSkin(final PetSkin skin) {
         if (owner != null) {
-            HashMap<String, PetSkin> ownerPetSkins = activeSkinsMap.get(owner);
-            if (ownerPetSkins == null)
-                ownerPetSkins = new HashMap<String, PetSkin>();
-
+            Map<String, PetSkin> ownerPetSkins = activeSkinsMap.computeIfAbsent(owner, k -> new ConcurrentHashMap<>());
             ownerPetSkins.put(id, skin);
-            activeSkinsMap.put(owner, ownerPetSkins);
         }
     }
 
@@ -254,7 +257,7 @@ public class Pet {
      */
     public PetSkin getActiveSkin() {
         if (owner != null) {
-            final HashMap<String, PetSkin> ownerPetSkins = activeSkinsMap.get(owner);
+            final Map<String, PetSkin> ownerPetSkins = activeSkinsMap.get(owner);
             if (ownerPetSkins != null) {
                 return ownerPetSkins.get(id);
             }
@@ -341,8 +344,16 @@ public class Pet {
      * Get the pet from the specified entity
      */
     public static Pet getFromEntity(final Entity ent) {
-        if (ent != null &&
-                ent.hasMetadata("AlmPet") &&
+        if (ent == null) {
+            return null;
+        }
+
+        // Ensure we're in the correct region to access metadata
+        if (!Bukkit.isOwnedByCurrentRegion(ent)) {
+            return null;
+        }
+
+        if (ent.hasMetadata("AlmPet") &&
                 !ent.getMetadata("AlmPet").isEmpty() &&
                 ent.getMetadata("AlmPet").getFirst() != null &&
                 ent.getMetadata("AlmPet").getFirst().value() != null) {
@@ -366,35 +377,40 @@ public class Pet {
      * Get all active pets for a player
      */
     public static List<Pet> getActivePetsForOwner(final UUID owner) {
-        return Pet.getActivePets().getOrDefault(owner, new ArrayList<>());
+        return Pet.getActivePets().getOrDefault(owner, new CopyOnWriteArrayList<>());
     }
 
     /**
      * Add a pet to a player's active pets list
      */
     public static void addActivePet(final UUID owner, final Pet pet) {
-        activePets.computeIfAbsent(owner, k -> new ArrayList<>()).add(pet);
+        activePets.computeIfAbsent(owner, k -> new CopyOnWriteArrayList<>()).add(pet);
     }
 
     /**
      * Remove a pet from a player's active pets list
      */
     public static void removeActivePet(final UUID owner, final Pet pet) {
-        final List<Pet> pets = activePets.get(owner);
-        if (pets != null) {
+        activePets.computeIfPresent(owner, (key, pets) -> {
             pets.remove(pet);
-            if (pets.isEmpty()) {
-                activePets.remove(owner);
-            }
-        }
+            return pets.isEmpty() ? null : pets;
+        });
     }
 
     /**
      * Get the pet from the last one that the player interacted with
      */
     public static Pet getFromLastInteractedWith(final Player p) {
-        if (p != null &&
-                p.hasMetadata("AlmPetInteracted") &&
+        if (p == null) {
+            return null;
+        }
+
+        // Ensure we're in the correct region to access metadata
+        if (!Bukkit.isOwnedByCurrentRegion(p)) {
+            return null;
+        }
+
+        if (p.hasMetadata("AlmPetInteracted") &&
                 !p.getMetadata("AlmPetInteracted").isEmpty() &&
                 p.getMetadata("AlmPetInteracted").getFirst() != null &&
                 p.getMetadata("AlmPetInteracted").getFirst().value() != null) {
@@ -407,8 +423,16 @@ public class Pet {
      * Get the pet from the last one that the player interacted with
      */
     public static Pet getFromLastOpInteractedWith(final Player p) {
-        if (p != null && p.hasPermission(PPermission.ADMIN.getPermission()) &&
-                p.hasMetadata("AlmPetOp") &&
+        if (p == null || !p.hasPermission(PPermission.ADMIN.getPermission())) {
+            return null;
+        }
+
+        // Ensure we're in the correct region to access metadata
+        if (!Bukkit.isOwnedByCurrentRegion(p)) {
+            return null;
+        }
+
+        if (p.hasMetadata("AlmPetOp") &&
                 !p.getMetadata("AlmPetOp").isEmpty() &&
                 p.getMetadata("AlmPetOp").getFirst() != null &&
                 p.getMetadata("AlmPetOp").getFirst().value() != null) {
@@ -421,15 +445,28 @@ public class Pet {
      * Associate the said player to the pet as last interacted with
      */
     public void setLastInteractedWith(final Player p) {
-        p.setMetadata("AlmPetInteracted", new FixedMetadataValue(MCPets.getInstance(), this));
+        if (p == null) {
+            return;
+        }
+
+        // Schedule metadata operation on player's region if needed
+        EntityAccessHelper.withPlayer(p.getUniqueId(), player ->
+            player.setMetadata("AlmPetInteracted", new FixedMetadataValue(MCPets.getInstance(), this))
+        );
     }
 
     /**
      * Associate the said op player to the pet as last interacted with
      */
     public void setLastOpInteracted(final Player p) {
-        if (p.hasPermission(PPermission.ADMIN.getPermission()))
-            p.setMetadata("AlmPetOp", new FixedMetadataValue(MCPets.getInstance(), this));
+        if (p == null || !p.hasPermission(PPermission.ADMIN.getPermission())) {
+            return;
+        }
+
+        // Schedule metadata operation on player's region if needed
+        EntityAccessHelper.withPlayer(p.getUniqueId(), player ->
+            player.setMetadata("AlmPetOp", new FixedMetadataValue(MCPets.getInstance(), this))
+        );
     }
 
     /**
@@ -511,13 +548,16 @@ public class Pet {
                 changeActiveMobTo(activeMob, owner, true, PetDespawnReason.REPLACED);
 
                 // Set the health at the top after taming
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        petStats.refreshMaxHealth();
-                        petStats.setHealth(petStats.getCurrentLevel().getMaxHealth());
-                    }
-                }.runTaskLater(MCPets.getInstance(), 2L);
+                if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                            activeMob.getEntity().getBukkitEntity(),
+                            () -> {
+                                petStats.refreshMaxHealth();
+                                petStats.setHealth(petStats.getCurrentLevel().getMaxHealth());
+                            },
+                            2L
+                    );
+                }
                 final Skill tamingOverSkillMM = Utils.getSkill(tamingOverSkill);
                 if (tamingOverSkillMM != null) {
                     try {
@@ -609,12 +649,8 @@ public class Pet {
         } else {
             recurrent_spawn = true;
             // LOOP SPAWN issue
-            new BukkitRunnable() {
-                @Override
-                public void run() {
-                    recurrent_spawn = false;
-                }
-            }.runTaskLater(MCPets.getInstance(), 10L);
+            MCPets.getInstance().getSchedulerAdapter().runAtLocationDelayed(loc,
+                    () -> recurrent_spawn = false, 10L);
         }
 
         // If we should check the permission
@@ -746,12 +782,8 @@ public class Pet {
                     Debugger.send("§cMythicMob was spawned but MCPets couldn't link it to an active mob. Trying again in 0.5s automatically...");
                     // We remove the entity coz that'll not be done by the despawn since the activeMob is null
                     ent.remove();
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            spawn(loc, bruise);
-                        }
-                    }.runTaskLater(MCPets.getInstance(), 10L);
+                    MCPets.getInstance().getSchedulerAdapter().runAtLocationDelayed(loc,
+                            () -> spawn(loc, bruise), 10L);
                     return MYTHIC_MOB_NULL;
                 }
 
@@ -762,17 +794,15 @@ public class Pet {
                     // It won't be a first spawn anymore
                     firstSpawn = false;
                     // Handles the mount on pet on first spawn
-                    new BukkitRunnable() {
-                        @Override
-                        public void run() {
-                            final Player p = Bukkit.getPlayer(owner);
-                            if (p != null && autoRide) {
-                                final boolean mounted = setMount(p);
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(ent, () -> {
+                        final Player p = Bukkit.getPlayer(owner);
+                        if (p != null && autoRide) {
+                            scheduleMount(p, mounted -> {
                                 if (!mounted)
                                     Language.NOT_MOUNTABLE.sendMessage(p);
-                            }
+                            });
                         }
-                    }.runTaskLater(MCPets.getInstance(), 5L);
+                    }, 5L);
                 }
 
                 // Call the spawned event
@@ -850,12 +880,15 @@ public class Pet {
         this.owner = owner;
 
         // Set the MythicMob owner with a delay so it will not conflict with ModelEngine
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (activeMob != null) activeMob.setOwnerUUID(owner);
-            }
-        }.runTaskLater(MCPets.getInstance(), 1L);
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                    activeMob.getEntity().getBukkitEntity(),
+                    () -> {
+                        if (activeMob != null) activeMob.setOwnerUUID(owner);
+                    },
+                    1L
+            );
+        }
 
         // Follow up the owner ?
         this.followOwner = followOwner;
@@ -977,7 +1010,10 @@ public class Pet {
     public void stopAI() {
         if (!taskRunning)
             return;
-        Bukkit.getScheduler().cancelTask(task);
+        if (task != null) {
+            task.cancel();
+            task = null;
+        }
         taskRunning = false;
     }
 
@@ -989,82 +1025,95 @@ public class Pet {
             return;
 
         taskRunning = true;
-        task = Bukkit.getServer().getScheduler().scheduleSyncRepeatingTask(MCPets.getInstance(), new Runnable() {
+        teleportTick = 0;
+        if (activeMob == null || activeMob.getEntity().getBukkitEntity() == null) {
+            taskRunning = false;
+            return;
+        }
 
-            private int teleportTick = 0;
+        task = MCPets.getInstance().getSchedulerAdapter().runAtEntityFixedRate(
+                activeMob.getEntity().getBukkitEntity(), this::scheduleAiDecision, 1L, 10L);
+    }
 
-            @Override
-            public void run() {
+    private void scheduleAiDecision() {
+        if (!taskRunning || owner == null || activeMob == null
+                || activeMob.getEntity().getBukkitEntity() == null) {
+            return;
+        }
 
-                final Player p = Bukkit.getPlayer(owner);
-                if (p == null) {
-                    getInstance().despawn(PetDespawnReason.OWNER_NOT_HERE);
-                    stopAI();
-                    return;
-                }
+        final Player ownerPlayer = Bukkit.getPlayer(owner);
+        if (ownerPlayer == null) {
+            despawn(PetDespawnReason.OWNER_NOT_HERE);
+            stopAI();
+            return;
+        }
 
-                if (p.isDead())
-                    return;
+        final Entity petEntity = activeMob.getEntity().getBukkitEntity();
+        MCPets.getInstance().getSchedulerAdapter().runAtEntity(ownerPlayer, () -> {
+            final OwnerSnapshot snapshot = new OwnerSnapshot(
+                    ownerPlayer.getLocation().clone(),
+                    ownerPlayer.isDead(),
+                    ownerPlayer.isFlying(),
+                    ownerPlayer.isGliding(),
+                    ownerPlayer.isOnGround(),
+                    getPermission() == null || ownerPlayer.hasPermission(getPermission())
+            );
+            MCPets.getInstance().getSchedulerAdapter().runAtEntity(petEntity,
+                    () -> executeAiDecision(snapshot));
+        });
+    }
 
-                if (!getInstance().isStillHere()) {
-                    Debugger.send("§6[AiManager] : §cPet " + getId() + " is not here, so it gets despawned.");
-                    getInstance().despawn(PetDespawnReason.AI_TRACK_DESPAWN);
-                    stopAI();
-                    return;
-                }
+    private void executeAiDecision(@NotNull final OwnerSnapshot snapshot) {
+        if (!taskRunning || snapshot.isDead()) {
+            return;
+        }
 
-                final String permission = getInstance().getPermission();
-                if (getInstance().isCheckPermission() && (permission == null || !p.hasPermission(permission))) {
-                    Debugger.send("§6[AiManager] : §cPet " + getId() + " despawned because the owner doesn't have permission");
-                    getInstance().despawn(PetDespawnReason.DONT_HAVE_PERM);
-                    stopAI();
-                    return;
-                }
+        if (!isStillHere()) {
+            Debugger.send("§6[AiManager] : §cPet " + getId() + " is not here, so it gets despawned.");
+            despawn(PetDespawnReason.AI_TRACK_DESPAWN);
+            stopAI();
+            return;
+        }
 
-                final Location petLocation = p.getLocation();
-                final Location ownerLoc = petLocation;
-                final Location petLoc = getInstance().getActiveMob().getEntity().getBukkitEntity().getLocation();
+        final String permission = getPermission();
+        if (isCheckPermission() && (permission == null || !snapshot.hasPermission())) {
+            Debugger.send("§6[AiManager] : §cPet " + getId() + " despawned because the owner doesn't have permission");
+            despawn(PetDespawnReason.DONT_HAVE_PERM);
+            stopAI();
+            return;
+        }
 
-                // If the owner is not in the same world as the pet and that the pet is fully tamed, we move it
-                // to the owner
-                if (!ownerLoc.getWorld().getName().equals(petLoc.getWorld().getName()) && tamingProgress == 1) {
-                    getInstance().despawn(PetDespawnReason.TELEPORT);
-                    getInstance().spawn(p, petLocation);
-                    return;
-                }
+        final Location ownerLocation = snapshot.getLocation();
+        final Location petLocation = activeMob.getEntity().getBukkitEntity().getLocation();
 
-                final double distance = Utils.distance(ownerLoc, petLoc);
+        if (!ownerLocation.getWorld().getName().equals(petLocation.getWorld().getName()) && tamingProgress == 1) {
+            despawn(PetDespawnReason.TELEPORT);
+            spawn(ownerLocation, true);
+            return;
+        }
 
-                // Following AI System
-                if (distance < getInstance().getComingBackRange()) {
-                    // If the pet is too close then it stops
-                    PathFindingUtils.stop(activeMob.getEntity(), owner);
-                } else if (distance > getInstance().getDistance() &&
-                        (distance < GlobalConfig.getInstance().getDistanceTeleport() || tamingProgress < 1)) {
-                    // If the pet is too far but not far enough to be teleported, then it follows up the owner
-                    // Except if the following is disabled
-                    // * Note : if the taming is not completed then the pet can not be teleported to the owner
-                    if (!followOwner)
-                        return;
-                    final AbstractLocation aloc = new AbstractLocation(activeMob.getEntity().getWorld(), petLocation.getX(), petLocation.getY(), petLocation.getZ());
-                    PathFindingUtils.moveTo(activeMob.getEntity(), aloc);
-                } else if (distance > GlobalConfig.getInstance().getDistanceTeleport()
-                        && !p.isFlying() && !p.isGliding()
-                        && p.isOnGround()
-                        && teleportTick == 0) {
-                    // If the pet is really too far, and that the owner is not flying
-                    // And that we didn't teleport the pet a few ticks before
-                    // Then we teleport the pet to the owner
-                    // * Note that if the taming of the pet is not fully complete, then the pet won't be teleported
-                    // * but instead the pet will try to come closer to the owner according to the previous "if"
-                    getInstance().teleportToPlayer(p);
-                    teleportTick = 4;
-                }
-                if (teleportTick > 0)
-                    teleportTick--;
+        final double distance = Utils.distance(ownerLocation, petLocation);
 
+        if (distance < getComingBackRange()) {
+            PathFindingUtils.stop(activeMob.getEntity(), owner);
+        } else if (distance > getDistance()
+                && (distance < GlobalConfig.getInstance().getDistanceTeleport() || tamingProgress < 1)) {
+            if (!followOwner) {
+                return;
             }
-        }, 0L, 10L);
+            final AbstractLocation abstractLocation = new AbstractLocation(activeMob.getEntity().getWorld(),
+                    ownerLocation.getX(), ownerLocation.getY(), ownerLocation.getZ());
+            PathFindingUtils.moveTo(activeMob.getEntity(), abstractLocation);
+        } else if (distance > GlobalConfig.getInstance().getDistanceTeleport()
+                && !snapshot.isFlying() && !snapshot.isGliding()
+                && snapshot.isOnGround() && teleportTick == 0) {
+            teleport(Utils.bruised(ownerLocation, Math.min(getSpawnRange(), getDistance())));
+            teleportTick = 4;
+        }
+
+        if (teleportTick > 0) {
+            teleportTick--;
+        }
     }
 
     /**
@@ -1163,6 +1212,39 @@ public class Pet {
         return false;
     }
 
+    @NotNull
+    public SchedulerTask scheduleDespawn(@NotNull final PetDespawnReason reason) {
+        return scheduleDespawn(reason, null);
+    }
+
+    @NotNull
+    public SchedulerTask scheduleDespawn(@NotNull final PetDespawnReason reason,
+                                         @Nullable final Runnable completionTask) {
+        final Runnable despawnTask = () -> {
+            despawn(reason);
+            if (completionTask != null) {
+                completionTask.run();
+            }
+        };
+
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(),
+                    despawnTask
+            );
+        }
+
+        if (owner != null) {
+            final Player ownerPlayer = Bukkit.getPlayer(owner);
+            if (ownerPlayer != null) {
+                return MCPets.getInstance().getSchedulerAdapter().runAtEntity(ownerPlayer,
+                        despawnTask);
+            }
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runGlobal(despawnTask);
+    }
+
     /**
      * Sync active pets to the Velocity DB after a despawn.
      * Skips DISCONNECTION (handled by PetListener) and TELEPORT (pet will re-spawn).
@@ -1177,7 +1259,7 @@ public class Pet {
             return;
 
         final UUID ownerUuid = owner;
-        Bukkit.getScheduler().runTaskAsynchronously(MCPets.getInstance(), () -> {
+        MCPets.getInstance().getSchedulerAdapter().runAsync(() -> {
             final List<Pet> remaining = Pet.getActivePetsForOwner(ownerUuid);
             if (remaining.isEmpty()) {
                 Databases.clearActivePet(ownerUuid);
@@ -1207,26 +1289,52 @@ public class Pet {
         }
     }
 
+    @NotNull
+    public SchedulerTask scheduleTeleport(@NotNull final Location location) {
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(),
+                    () -> teleport(location)
+            );
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runAtLocation(location,
+                () -> teleport(location));
+    }
+
     /**
      * Teleport the pet to the player
      */
-    public void teleportToPlayer(final Player p) {
-        final Location loc = Utils.bruised(p.getLocation(), Math.min(getSpawnRange(), getDistance()));
-        Debugger.send("§7teleporting pet " + id + " to player " + p.getName());
+    public void teleportToPlayer(@NotNull final Player player) {
+        final Location loc = Utils.bruised(player.getLocation(), Math.min(getSpawnRange(), getDistance()));
+        Debugger.send("§7teleporting pet " + id + " to player " + player.getName());
         if (isStillHere())
             this.teleport(loc);
+    }
+
+    @NotNull
+    public SchedulerTask scheduleTeleportToPlayer(@NotNull final Player player) {
+        return MCPets.getInstance().getSchedulerAdapter().runAtEntity(player, () -> {
+            final Location location = Utils.bruised(player.getLocation(), Math.min(getSpawnRange(), getDistance()));
+            if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+                MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                        activeMob.getEntity().getBukkitEntity(),
+                        () -> teleport(location)
+                );
+            }
+        });
     }
 
     /**
      * Say whether or not the entity is still present
      */
     public boolean isStillHere() {
-        return activeMob != null &&
-                activeMob.getEntity() != null &&
-                activeMob.getEntity().getBukkitEntity() != null &&
-                //!activeMob.getEntity().getBukkitEntity().isDead() &&     THIS ONE APPARENTLY DOESN'T WORK AS INTENDED
-                !activeMob.isDead() &&
-                !removed;
+        if (activeMob == null || activeMob.getEntity() == null || activeMob.isDead() || removed) {
+            return false;
+        }
+
+        // Check if the entity is accessible in the current region
+        return EntityAccessHelper.isEntityAccessible(activeMob.getEntity().getUniqueId());
     }
 
     /**
@@ -1289,13 +1397,13 @@ public class Pet {
 
                     activeMob.getEntity().getBukkitEntity().customName(customName);
 
-                    new BukkitRunnable() {
-
-                        @Override
-                        public void run() {
-                            setNameTag(currentName, false);
-                        }
-                    }.runTaskLater(MCPets.getInstance(), 10L);
+                    if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+                        MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                                activeMob.getEntity().getBukkitEntity(),
+                                () -> setNameTag(currentName, false),
+                                10L
+                        );
+                    }
 
                     if (save) {
                         final PlayerData pd = PlayerData.get(owner);
@@ -1308,12 +1416,13 @@ public class Pet {
 
                 activeMob.getEntity().getBukkitEntity().customName(Utils.toComponent(currentName));
 
-                new BukkitRunnable() {
-                    @Override
-                    public void run() {
-                        setNameTag(currentName, true);
-                    }
-                }.runTaskLater(MCPets.getInstance(), 10L);
+                if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+                    MCPets.getInstance().getSchedulerAdapter().runAtEntityDelayed(
+                            activeMob.getEntity().getBukkitEntity(),
+                            () -> setNameTag(currentName, true),
+                            10L
+                    );
+                }
 
                 Debugger.send("§7Applying name " + name + " to pet " + id);
                 if (save) {
@@ -1365,6 +1474,7 @@ public class Pet {
      */
     public boolean setMount(final Entity ent) {
         if (ent == null) return false;
+        if (!isStillHere()) return false;
 
         final EntityMountPetEvent event = new EntityMountPetEvent(ent, this);
         final EntityMountEvent vanillaMountEvent = new EntityMountEvent(ent, activeMob.getEntity().getBukkitEntity());
@@ -1374,19 +1484,35 @@ public class Pet {
         // We still return true as it's a normal situation, not linked to mounting point issue
         if (event.isCancelled() || vanillaMountEvent.isCancelled()) return true;
 
-        if (isStillHere()) {
-            final UUID petUUID = activeMob.getEntity().getUniqueId();
-            try {
-                if (!MCPets.getModeler().mountDriver(petUUID, ent, mountType)) {
-                    activeMob.getEntity().getBukkitEntity().addPassenger(ent);
-                    return false;
-                }
-            } catch (final IllegalStateException ex) {
-                Language.ALREADY_MOUNTING.sendMessageFormatted(ent);
+        final UUID petUUID = activeMob.getEntity().getUniqueId();
+        try {
+            if (!MCPets.getModeler().mountDriver(petUUID, ent, mountType)) {
+                activeMob.getEntity().getBukkitEntity().addPassenger(ent);
+                return false;
             }
-            return true;
+        } catch (final IllegalStateException ex) {
+            Language.ALREADY_MOUNTING.sendMessageFormatted(ent);
         }
-        return false;
+        return true;
+    }
+
+    @NotNull
+    public SchedulerTask scheduleMount(@NotNull final Entity rider,
+                                       @Nullable final Consumer<Boolean> completionHandler) {
+        final Runnable mountTask = () -> {
+            final boolean mounted = setMount(rider);
+            if (completionHandler != null) {
+                MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider,
+                        () -> completionHandler.accept(mounted));
+            }
+        };
+
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(), mountTask);
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider, mountTask);
     }
 
     /**
@@ -1410,6 +1536,28 @@ public class Pet {
             final UUID localUUID = activeMob.getEntity().getUniqueId();
             MCPets.getModeler().dismountRider(localUUID, ent);
         }
+    }
+
+    @NotNull
+    public SchedulerTask scheduleDismount(@NotNull final Entity rider) {
+        return scheduleDismount(rider, null);
+    }
+
+    @NotNull
+    public SchedulerTask scheduleDismount(@NotNull final Entity rider, @Nullable final Runnable completionTask) {
+        final Runnable dismountTask = () -> {
+            dismount(rider);
+            if (completionTask != null) {
+                MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider, completionTask);
+            }
+        };
+
+        if (activeMob != null && activeMob.getEntity().getBukkitEntity() != null) {
+            return MCPets.getInstance().getSchedulerAdapter().runAtEntity(
+                    activeMob.getEntity().getBukkitEntity(), dismountTask);
+        }
+
+        return MCPets.getInstance().getSchedulerAdapter().runAtEntity(rider, dismountTask);
     }
 
     /**

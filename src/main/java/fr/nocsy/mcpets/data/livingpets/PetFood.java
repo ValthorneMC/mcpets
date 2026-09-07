@@ -25,8 +25,6 @@ import fr.nocsy.mcpets.data.config.PetFoodConfig;
 import com.nexomc.nexo.api.NexoItems;
 import com.nexomc.nexo.items.ItemBuilder;
 
-import dev.lone.itemsadder.api.CustomStack;
-
 public class PetFood {
 
     private static final Map<String, PetFood> petFoodHashMap = new HashMap<>();
@@ -145,12 +143,6 @@ public class PetFood {
                 return itemStack;
             }
             // We found no match.
-            // so, trying to find items from ItemsAdder if ItemsAdder is enabled.
-            // if ItemsAdder is not enabled or found no match in ItemsAdder, set the item to unknown.
-            if (MCPets.isItemsAdderLoaded()) {
-                CustomStack customStack = CustomStack.getInstance(itemId);
-                itemStack = (customStack == null) ? Items.UNKNOWN.getItem().clone() : customStack.getItemStack();
-            }
 
             if (itemStack == null && MCPets.checkNexo()) {
                 ItemBuilder builder = NexoItems.itemFromId(itemId);
@@ -191,7 +183,8 @@ public class PetFood {
     public void registerWaitingList(UUID owner, long delay) {
         if (!waitingListApply.add(owner)) return;
 
-        Bukkit.getScheduler().runTaskLater(MCPets.getInstance(), () -> waitingListApply.remove(owner), delay);
+        MCPets.getInstance().getSchedulerAdapter().runGlobalDelayed(
+                () -> waitingListApply.remove(owner), delay);
     }
 
     private int getRemainingCooldownInSeconds(Pet pet) {
@@ -346,24 +339,7 @@ public class PetFood {
                 break;
             }
 
-            // find ItemsAdder Items
-            if (MCPets.isItemsAdderLoaded()) {
-                CustomStack handCustomStack = CustomStack.byItemStack(handItem);
-                CustomStack foodCustomStack = CustomStack.byItemStack(petFoods.getItemStack());
-
-                if (handCustomStack == null || foodCustomStack == null) continue;
-
-                // get <namespace>:<id>
-                String handId = handCustomStack.getNamespacedID();
-                String foodId = foodCustomStack.getNamespacedID();
-
-                // check their id is same
-                if (handId.equals(foodId)) {
-                    resultFood = petFoods;
-                    break;
-                }
-            }
-
+            // find Nexo Items
             if (MCPets.checkNexo() && NexoItems.isSameId(handItem, petFoods.getItemStack())) {
                 resultFood = petFoods;
                 break;

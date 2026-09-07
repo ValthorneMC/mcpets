@@ -12,8 +12,6 @@ import org.bukkit.inventory.meta.ItemMeta;
 
 import net.kyori.adventure.text.Component;
 
-import dev.lone.itemsadder.api.CustomStack;
-
 import com.nexomc.nexo.api.NexoItems;
 import com.nexomc.nexo.items.ItemBuilder;
 
@@ -28,9 +26,11 @@ import fr.nocsy.mcpets.utils.debug.Debugger;
 import fr.nocsy.mcpets.utils.PetAnnouncement;
 import fr.nocsy.mcpets.data.livingpets.PetLevel;
 
+import java.util.concurrent.ConcurrentHashMap;
+
 public class PetConfig extends AbstractConfig {
 
-    private static Map<String, PetConfig> petConfigMapping = new HashMap<>();
+    private static Map<String, PetConfig> petConfigMapping = new ConcurrentHashMap<>();
 
     public static String getFilePath(final String petId) {
         final PetConfig config = getConfig(petId);
@@ -238,24 +238,6 @@ public class PetConfig extends AbstractConfig {
                     item, showStats, localName,
                     name, description, mat, data, textureBase, itemModel, tooltipStyle
             );
-            // ItemsAdder compat
-            if (MCPets.isItemsAdderLoaded() && !itemsAdder.isEmpty()) {
-                final CustomStack customStack = CustomStack.getInstance(itemsAdder);
-                if (customStack != null) {
-                    final ItemStack iaItem = customStack.getItemStack();
-                    itemStack = pet.buildItem(
-                            iaItem,
-                            showStats,
-                            localName,
-                            name,
-                            description,
-                            iaItem.getType().toString(),
-                            iaItem.getItemMeta().getCustomModelData(),
-                            textureBase,
-                            null, null
-                    );
-                }
-            }
 
             // Nexo integration — keep the original Nexo ItemStack to preserve item_model and all components
             if (MCPets.checkNexo()) {
